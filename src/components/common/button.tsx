@@ -8,7 +8,7 @@ import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import { Route } from 'next';
 
 export const buttonVariants = cva(
-	'inline-flex gap-2 items-center justify-center border font-semibold rounded-md shadow-sm focus:outline-none focus:ring-2 capitalize relative active:translate-y-px active:scale-[99%] active:outline-none transition-all',
+	'inline-flex items-center justify-center border font-semibold rounded-md shadow-sm focus:outline-none focus:ring-2 capitalize relative active:translate-y-px active:scale-[99%] active:outline-none transition-all',
 	{
 		variants: {
 			variant: {
@@ -19,8 +19,12 @@ export const buttonVariants = cva(
 					'dark:before:-inset-px dark:before:rounded-lg',
 					'dark:before:pointer-events-none dark:before:absolute dark:before:shadow-[0px_2px_8px_0px_hsl(var(--red-900)),_0px_1px_0px_0px_hsl(var(--red-400)_/_50%)_inset]',
 				),
-				warning:
-					'text-white bg-yellow-500 hover:bg-yellow-600 border-transparent focus:ring-offset-2 focus:ring-brand-400 dark:focus:ring-offset-zinc-900',
+				warning: twJoin(
+					'text-yellow-50 bg-yellow-400/70 hover:bg-yellow-600 border-transparent focus:ring-offset-2 focus:ring-brand-400 dark:focus:ring-offset-zinc-900',
+					'shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.05)]',
+					'dark:before:-inset-px dark:before:rounded-lg',
+					'dark:before:pointer-events-none dark:before:absolute dark:before:shadow-[0px_2px_8px_0px_hsl(var(--yellow-900)),_0px_1px_0px_0px_hsl(var(--yellow-400)_/_50%)_inset]',
+				),
 				info: twJoin(
 					'text-blue-50 bg-sky-400/70 hover:bg-sky-600 border-transparent focus:ring-offset-2 focus:ring-brand-400 dark:focus:ring-offset-zinc-900',
 					'shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.05)]',
@@ -50,9 +54,9 @@ export const buttonVariants = cva(
 				true: 'opacity-60 cursor-not-allowed',
 			},
 			size: {
-				sm: 'px-3 py-1 text-xs',
-				lg: 'px-6 py-3 text-lg',
-				default: 'px-4 py-2 text-sm',
+				sm: 'px-2 py-1 text-xs gap-2',
+				lg: 'px-6 py-3 text-lg gap-4',
+				default: 'px-3 py-2 text-sm gap-2',
 				icon: 'h-9 w-9',
 				'icon-sm': 'h-6 w-6',
 				'icon-xs': 'h-4 w-4',
@@ -145,12 +149,12 @@ export const Button = forwardRef(function Button<T extends string>(
 			</Link>
 		);
 	}
-	if (dropdownItems && onClick == null) {
+	if (dropdownItems && dropdownItems.length && onClick == null) {
 		return (
 			<Menu as="span" className="relative inline-block text-left">
 				<Menu.Button className={buttonClasses} title={title} disabled={!!disabled}>
 					{children}
-					<ChevronDownIcon className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
+					<ChevronDownIcon className="-mr-2 h-5 w-5" aria-hidden="true" />
 				</Menu.Button>
 
 				<Transition
