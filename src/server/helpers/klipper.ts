@@ -1,4 +1,5 @@
 import { MoonrakerPrinterState, MoonrakerPrinterStateErrorEnum, parseMoonrakerHTTPResponse } from '@/zods/moonraker';
+import { ZodError } from 'zod';
 
 export const queryPrinterState = async (): Promise<
 	Zod.output<typeof MoonrakerPrinterState>['status']['print_stats']['state']
@@ -15,6 +16,8 @@ export const queryPrinterState = async (): Promise<
 					e.cause === MoonrakerPrinterStateErrorEnum.MOONRAKER_INTERNAL_ERROR)
 		) {
 			return 'error';
+		} else if (e instanceof ZodError) {
+			return 'error';
 		} else {
 			throw e;
 		}
@@ -23,7 +26,7 @@ export const queryPrinterState = async (): Promise<
 };
 
 export const klipperRestart = async (force = false) => {
-	if (force || ['error', 'complete', 'canceled', 'standby'].includes(await queryPrinterState())) {
+	if (force || ['error', 'complete', 'canceled', 'standby', undefined].includes(await queryPrinterState())) {
 		await fetch('http://localhost:7125/printer/restart', { method: 'POST' });
 		return true;
 	}
