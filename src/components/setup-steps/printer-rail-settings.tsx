@@ -23,6 +23,8 @@ import { trpc } from '@/utils/trpc';
 import { twMerge } from 'tailwind-merge';
 import { z } from 'zod';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Card } from '@/components/common/card';
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const railArray = z.array(BasePrinterRail);
 
@@ -48,11 +50,19 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 	const [performanceMode, setPerformanceMode] = useState(!!props.performanceMode);
 	const setPrinterRail = useSetRecoilState(PrinterRailState(props.printerRail.axis));
 	const printerRails = useRecoilValue(PrinterRailsState);
-	const integratedDriver =
-		board?.integratedDrivers &&
-		board.integratedDrivers[
-			props.printerRail.axis.startsWith('extruder') ? PrinterAxis.extruder : props.printerRail.axis
-		];
+	const [motorSlot, setMotorSlot] = useState(
+		props.printerRail.motorSlot && props.selectedBoard?.motorSlots?.[props.printerRail.motorSlot]
+			? props.printerRail.motorSlot
+			: undefined,
+	);
+	const integratedDriver = board?.integratedDrivers
+		? board.integratedDrivers[
+				motorSlot ?? (props.printerRail.axis.startsWith('extruder') ? PrinterAxis.extruder : props.printerRail.axis)
+			] ??
+			board.integratedDrivers[
+				props.printerRail.axis.startsWith('extruder') ? PrinterAxis.extruder : props.printerRail.axis
+			]
+		: null;
 	const [driver, setDriver] = useState(
 		integratedDriver != null
 			? deserializeDriver(integratedDriver) ?? props.printerRail.driver
@@ -63,19 +73,6 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 		performanceMode
 			? props.printerRailDefault.performanceMode?.homingSpeed ?? props.printerRailDefault.homingSpeed
 			: props.printerRailDefault.homingSpeed,
-	);
-	const [motorSlot, setMotorSlot] = useState(
-		props.printerRail.motorSlot && props.selectedBoard?.motorSlots?.[props.printerRail.motorSlot]
-			? props.printerRail.motorSlot
-			: undefined,
-	);
-	const guessMotorSlot = trpc.mcu.reversePinLookup.useQuery(
-		{
-			axis: props.printerRail.axis,
-			canUseExtruderlessConfigs: canBeExtruderlessBoard,
-			boardPath: board?.path ?? '',
-		},
-		{ enabled: !!board },
 	);
 	const errorCount =
 		props.errors == null
@@ -110,6 +107,14 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 		[printerRails, props.printerRail.axis, toolheads],
 	);
 
+	const guessMotorSlot = trpc.mcu.reversePinLookup.useQuery(
+		{
+			axis: props.printerRail.axis,
+			canUseExtruderlessConfigs: canBeExtruderlessBoard,
+			boardPath: board?.path ?? '',
+		},
+		{ enabled: !!board },
+	);
 	useEffect(() => {
 		if (guessMotorSlot.data && motorSlot == null && board?.motorSlots?.[guessMotorSlot.data] != null) {
 			setMotorSlot(guessMotorSlot.data);
@@ -296,36 +301,24 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 	return (
 		<AnimatePresence>
 			{props.isVisible && (
-				<motion.div
+				<Card
 					key={props.printerRail.axis}
 					exit={{ opacity: 0, scale: 0.9, y: -40 }}
 					initial={{ opacity: 0, scale: 0.9, y: 40 }}
 					animate={{ opacity: 1, scale: 1, y: 0 }}
 					className={twMerge(
-						'break-inside-avoid-column rounded-md border border-zinc-300 p-4 shadow-lg dark:border-zinc-700',
+						'break-inside-avoid-column',
 						errorCount > 0 && badgeBorderColorStyle({ color: 'red' }),
 						errorCount > 0 && badgeBackgroundColorStyle({ color: 'red' }),
 					)}
 				>
-					<div className="">
-						<h3
-							className={twMerge(
-								'text-sm font-bold leading-6 text-zinc-700 dark:text-zinc-300',
-								errorCount > 0 && 'text-red-900/80 dark:text-red-100',
-							)}
-						>
-							{railName}
-						</h3>
-						<p
-							className={twMerge(
-								'text-sm text-zinc-500 dark:text-zinc-400',
-								errorCount > 0 && 'text-red-800/80 dark:text-red-100/60',
-							)}
-						>
+					<CardHeader className="">
+						<CardTitle className={twMerge(errorCount > 0 && 'text-red-900/80 dark:text-red-100')}>{railName}</CardTitle>
+						<CardDescription className={twMerge(errorCount > 0 && 'text-red-800/80 dark:text-red-100/60')}>
 							{props.printerRail.axisDescription}
-						</p>
-					</div>
-					<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						{motorSlotOptions && (
 							<div className="col-span-2">
 								<Dropdown
@@ -334,6 +327,9 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 									error={props.errors?.motorSlot?._errors.join('\n')}
 									onSelect={(ms) => {
 										setMotorSlot(ms.id);
+										if (board?.integratedDrivers?.[ms.id] != null) {
+											setDriver(deserializeDriver(board.integratedDrivers[ms.id]) ?? driver);
+										}
 									}}
 									value={motorSlot ? motorSlotOptions.find((ms) => ms.id === motorSlot) : undefined}
 									badge={motorSlotBadge}
@@ -403,8 +399,8 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 									to apply the preset automatically.
 								</Banner>
 							)}
-					</div>
-				</motion.div>
+					</CardContent>
+				</Card>
 			)}
 		</AnimatePresence>
 	);

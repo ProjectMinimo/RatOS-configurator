@@ -776,7 +776,7 @@ export const constructKlipperConfigHelpers = async (
 			let result: string[] = [];
 			if (config.controlboard.hasQuirksFiles) {
 				result.push('# Include controlboard quirk file');
-				if (utils.getToolhead(PrinterAxis.extruder) != null) {
+				if (utils.getToolhead(PrinterAxis.extruder)?.getToolboard() != null) {
 					result.push(`[include RatOS/boards/${config.controlboard.id}/quirks-toolboard.cfg]`);
 				} else {
 					result.push(`[include RatOS/boards/${config.controlboard.id}/quirks.cfg]`);
@@ -882,6 +882,16 @@ export const constructKlipperConfigHelpers = async (
 						}
 						break;
 				}
+			}
+			return result.join('\n');
+		},
+		renderZOffsetGuidance(additionalLinePrefix: string = '') {
+			const result: string[] = [];
+			if (config.toolheads.some((th) => th.probe?.id === 'beacon')) {
+				result.push(`Z-offset calibration: Follow along from step 6 in the official beacon guide`);
+				result.push(`${additionalLinePrefix}https://docs.beacon3d.com/quickstart/#6-calibrate-beacon`);
+			} else {
+				result.push(`Z-offset calibration: https://www.klipper3d.org/Probe_Calibrate.html#calibrating-probe-z-offset`);
 			}
 			return result.join('\n');
 		},
