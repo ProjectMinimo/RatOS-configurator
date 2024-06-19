@@ -8,7 +8,7 @@ import { PrinterStateHeader } from '@/components/common/printer-state-header';
 
 const LoadScreen: React.FC = () => {
 	return (
-		<div className="p-8">
+		<div>
 			<div className="mb-5 border-b border-zinc-200 pb-5 dark:border-zinc-700">
 				<h3 className="text-lg font-medium leading-6 text-zinc-900 dark:text-zinc-100">
 					Loading printer configuration...
@@ -32,7 +32,7 @@ export default function Page() {
 				title="Motion Settings"
 				description="You can change your motion settings below, be aware that any change will require the config to be regenerated"
 			/>
-			<div className="mx-auto max-w-7xl px-4">
+			<div className="mx-auto w-full max-w-7xl px-4">
 				<React.Suspense fallback={<LoadScreen />}>
 					<NoSSR fallback={<LoadScreen />}>
 						<Motion />
