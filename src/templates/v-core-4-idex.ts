@@ -58,6 +58,12 @@ ${helper.renderFans()}
 #############################################################################################################
 ${helper.renderMacros()}
 
+[gcode_macro T0]
+variable_has_oozeguard: True
+
+[gcode_macro T1]
+variable_has_oozeguard: True
+
 # Macro variable overrides
 [gcode_macro RatOS]
 ${helper.renderMacroVariableOverrides()}
@@ -167,7 +173,7 @@ ${helper.renderUserStepperSections({
 		rotationComment: '4 for TR8*4 lead screws',
 	},
 	extruder: {
-		directionInverted: true,
+		directionInverted: false,
 		additionalLines: [
 			'#pressure_advance: 0.05 # Check https://www.klipper3d.org/Pressure_Advance.html for pressure advance tuning.',
 			'control: pid',
@@ -177,7 +183,7 @@ ${helper.renderUserStepperSections({
 		],
 	},
 	extruder1: {
-		directionInverted: true,
+		directionInverted: false,
 		additionalLines: [
 			'#pressure_advance: 0.05 # Check https://www.klipper3d.org/Pressure_Advance.html for pressure advance tuning.',
 			'control: pid',
