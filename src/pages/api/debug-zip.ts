@@ -13,7 +13,7 @@ export const getDebugZipFiles = async () => {
 	}
 	const environment = serverSchema.parse(process.env);
 
-	const extensions = `+(cfg|json|ndjson|conf)`;
+	const extensions = `+(cfg|json|ndjson|conf|log)`;
 
 	let ratosFiles: string[] = await glob([
 		`${environment.RATOS_DATA_DIR}/*.+(cfg|json|conf|log)`,
@@ -36,7 +36,7 @@ export const getDebugZipFiles = async () => {
 			`${environment.KLIPPER_CONFIG_PATH}/*.${extensions}`,
 			`${environment.KLIPPER_CONFIG_PATH}/**/*.${extensions}`,
 		])
-	).filter((file) => !exclude.includes(file) && file.indexOf('printer_data/config/RatOS') === -1);
+	).filter((file) => !exclude.includes(file) && file.indexOf('printer_data/config/RatOS/') === -1);
 
 	configs = configs.filter((file, index) => configs.indexOf(file) === index);
 

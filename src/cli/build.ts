@@ -1,6 +1,14 @@
 import * as esbuild from 'esbuild';
+import esbuildPluginPino from 'esbuild-plugin-pino';
 import path from 'node:path';
-import fs from 'node:fs';
+import fs, { existsSync, readFileSync } from 'node:fs';
+import { $ } from 'zx';
+import dotenv from 'dotenv';
+import { serverSchema } from '@/env/schema.mjs';
+import pinoshim from '@/cli/pino-shim.ts';
+
+const envFile = existsSync('../.env.local') ? readFileSync('../.env.local') : readFileSync('../.env');
+const environment = serverSchema.parse({ NODE_ENV: 'production', ...dotenv.parse(envFile) });
 
 let wasmPlugin = {
 	name: 'wasm',
@@ -55,12 +63,18 @@ let wasmPlugin = {
 };
 
 await esbuild.build({
-	entryPoints: ['ratos.tsx'],
+	entryPoints: {
+		ratos: 'ratos.tsx',
+	},
 	bundle: true,
+	external: ['zx'],
 	platform: 'node',
-	outfile: '../bin/ratos.mjs',
+	outExtension: { '.js': '.mjs' },
+	outdir: '../bin',
 	target: 'node18',
 	format: 'esm',
 	inject: ['cjs-shim.ts'],
-	plugins: [wasmPlugin],
+	plugins: [wasmPlugin, pinoshim({ transports: ['pino-pretty'] })],
 });
+
+// await $`mv ../bin/ratos.mjs.js ../bin/ratos.mjs`;

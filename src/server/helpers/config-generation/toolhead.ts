@@ -289,7 +289,10 @@ export class ToolheadGenerator<IsToolboard extends boolean> extends ToolheadHelp
 					if (value == null) {
 						throw new Error(`Parameter "${parameter}" has no value in custom section "${sectionName}"`);
 					}
-					if (typeof value == 'string' && Object.values(this.toolboardPins).includes(value)) {
+					if (
+						typeof value == 'string' &&
+						(parameter.endsWith('_pin') || parameter === 'pin' || Object.values(this.toolboardPins).includes(value))
+					) {
 						result.push(`${parameter}: ${this.isToolboardPinInverted(value) ? '!' : ''}${this.getPinPrefix()}${value}`);
 					} else {
 						result.push(`${parameter}: ${value}`);
@@ -326,6 +329,10 @@ export class ToolheadGenerator<IsToolboard extends boolean> extends ToolheadHelp
 				'sensor_type',
 				`sensor_type: ${this.getThermistor()}\npullup_resistor: ${actualPullup}`,
 			);
+		}
+		if (actualPullup === 4700) {
+			// Don't add default pullup resistor to the hotend config to accomodate for MAX31685 users.
+			hotend = replaceLinesStartingWith(hotend, 'pullup_resistor: 4700', null);
 		}
 		if (hotend.split('\n').some((line) => line.trim().startsWith('nozzle_diameter'))) {
 			hotend = replaceLinesStartingWith(hotend, 'nozzle_diameter', `nozzle_diameter: ${this.getNozzle().diameter}`);
@@ -508,6 +515,13 @@ export class ToolheadGenerator<IsToolboard extends boolean> extends ToolheadHelp
 		}
 		const result = [
 			`[gcode_macro ${this.getToolCommand()}]`,
+			`variable_join: 0`,
+			`variable_remap: 0`,
+			`variable_alert: ""`,
+			`variable_filament_name: ""`,
+			`variable_filament_type: ""`,
+			`variable_filament_temp: 0`,
+			`variable_runout_sensor: ""`,
 			`variable_active: ${this.getTool() === 0 ? 'True' : 'False'}`,
 			`variable_color: "${this.getTool() === 0 ? '7bff33' : '0ea5e9'}"              # Used in frontends`,
 			`variable_hotend_type: "${this.getHotend().flowType.toUpperCase()}"`,
