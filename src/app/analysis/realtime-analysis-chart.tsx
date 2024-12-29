@@ -47,7 +47,7 @@ export const useRealtimeAnalysisChart = (
 	const [isLoading, setIsLoading] = useState(false);
 	const toolheads = useToolheads();
 	const controlBoard = useRecoilValue(ControlboardState);
-	const adxl = accelerometer ?? toolheads[0].getYAccelerometerName();
+	const adxl = accelerometer ?? toolheads[0].getYAccelerometerName() ?? 'controlboard';
 	const adxlHardwareName =
 		(adxl === 'controlboard'
 			? controlBoard?.name

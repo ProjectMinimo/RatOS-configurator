@@ -1,4 +1,4 @@
-import { tokenize, markEdits, markWord } from 'react-diff-view';
+import { tokenize, markEdits, markWord, TokenizeOptions } from 'react-diff-view';
 import refractor from 'refractor/core';
 import python from 'refractor/lang/python';
 import properties from 'refractor/lang/properties';
@@ -9,15 +9,14 @@ self.addEventListener('message', ({ data: { id, payload } }) => {
 	const { hunks, oldSource, language, editsType } = payload;
 
 	const enhancers = [editsType === 'none' ? null : markEdits(hunks, { type: editsType })];
-
-	const options = {
-		highlight: language !== 'text',
+	const highlight = language !== 'text';
+	const options: TokenizeOptions = {
+		highlight: highlight,
 		refractor: refractor,
 		language: language,
 		oldSource: oldSource,
-		enhancers: enhancers.filter(Boolean),
+		enhancers: enhancers.filter((e) => e !== null),
 	};
-
 	try {
 		const tokens = tokenize(hunks, options);
 		const payload = {

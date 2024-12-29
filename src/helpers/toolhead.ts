@@ -10,10 +10,10 @@ import { getDefaultNozzle } from '@/data/nozzles';
 import deepEqual from 'deep-equal';
 import { KlipperAccelSensorName } from '@/zods/hardware';
 
-type ToolheadSuffix = `t${ToolNumber}`;
-type ToolheadCommand = `T${ToolNumber}`;
-type ToolboardAxisString = 'x' | 'dc';
-type ToolboardShortName = ToolheadSuffix;
+export type ToolheadSuffix = `t${ToolNumber}`;
+export type ToolheadCommand = `T${ToolNumber}`;
+export type ToolboardAxisString = 'x' | 'dc';
+export type ToolboardShortName = ToolheadSuffix;
 
 export class ToolheadHelper<IsToolboard extends boolean> {
 	protected config: ToolheadConfiguration<IsToolboard>;
@@ -92,7 +92,7 @@ export class ToolheadHelper<IsToolboard extends boolean> {
 	public getYAccelerometer() {
 		return this.config.yAccelerometer;
 	}
-	public getXAccelerometerName(): KlipperAccelSensorName {
+	public getXAccelerometerName(): KlipperAccelSensorName | null {
 		switch (this.getXAccelerometer()?.id) {
 			case 'controlboard':
 				return 'controlboard';
@@ -105,10 +105,10 @@ export class ToolheadHelper<IsToolboard extends boolean> {
 			case 'beacon':
 				return 'beacon';
 			default:
-				return 'controlboard';
+				return null;
 		}
 	}
-	public getYAccelerometerName(): KlipperAccelSensorName {
+	public getYAccelerometerName(): KlipperAccelSensorName | null {
 		switch (this.getYAccelerometer()?.id) {
 			case 'controlboard':
 				return 'controlboard';
@@ -121,7 +121,7 @@ export class ToolheadHelper<IsToolboard extends boolean> {
 			case 'beacon':
 				return 'beacon';
 			default:
-				return 'controlboard';
+				return null;
 		}
 	}
 	public getChangeSet(changes: PartialToolheadConfiguration) {

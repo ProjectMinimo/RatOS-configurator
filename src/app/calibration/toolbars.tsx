@@ -73,7 +73,7 @@ const useToolbarState = (props: { zoom: number }) => {
 		clearTempZoomExpand();
 	}, [clearTempZoomExpand]);
 
-	const live_position = usePrinterObjectSubscription((res) => {
+	const livePosition = usePrinterObjectSubscription((res) => {
 		return {
 			x: res.motion_report.live_position?.[0],
 			y: res.motion_report.live_position?.[1],
@@ -99,7 +99,7 @@ const useToolbarState = (props: { zoom: number }) => {
 	const isZOffsetProbeVisible = hasZOffsetProbe && isVaocStarted;
 
 	return {
-		live_position,
+		livePosition,
 		tool: t0?.active ? 'T0' : t1?.active ? 'T1' : null,
 		isStartingVaoc,
 		setIsStartingVaoc,
@@ -141,7 +141,6 @@ export const Toolbars: React.FC<ToolbarsProps> = (props) => {
 		isFullscreened,
 	} = props;
 	const {
-		live_position,
 		tool,
 		isStartingVaoc,
 		setIsStartingVaoc,

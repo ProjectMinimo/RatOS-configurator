@@ -151,9 +151,9 @@ const parseCell = (cell: string): Network => {
  * @param {function} callback The callback function.
  *
  */
-const parseScan = (show_hidden: boolean) => {
+const parseScan = (showHidden: boolean) => {
 	return function ({ stdout, stderr }: { stdout: string; stderr: string }) {
-		if (show_hidden) {
+		if (showHidden) {
 			return stdout
 				.split(/(^|\n)(?=BSS )/)
 				.map(parseCell)

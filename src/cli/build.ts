@@ -1,14 +1,7 @@
 import * as esbuild from 'esbuild';
-import esbuildPluginPino from 'esbuild-plugin-pino';
 import path from 'node:path';
-import fs, { existsSync, readFileSync } from 'node:fs';
-import { $ } from 'zx';
-import dotenv from 'dotenv';
-import { serverSchema } from '@/env/schema.mjs';
-import pinoshim from '@/cli/pino-shim.ts';
-
-const envFile = existsSync('../.env.local') ? readFileSync('../.env.local') : readFileSync('../.env');
-const environment = serverSchema.parse({ NODE_ENV: 'production', ...dotenv.parse(envFile) });
+import fs from 'node:fs';
+import pinoshim from '@/cli/pino-shim';
 
 let wasmPlugin = {
 	name: 'wasm',

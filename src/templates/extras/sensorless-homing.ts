@@ -1,7 +1,11 @@
 import { KlipperConfigUtils } from '@/server/helpers/klipper-config';
 import { PrinterAxis } from '@/zods/motion';
 import { PrinterConfiguration } from '@/zods/printer-configuration';
-export const sensorlessXTemplate = (config: PrinterConfiguration, utils: KlipperConfigUtils) => `
+export const sensorlessXTemplate = (
+	config: PrinterConfiguration,
+	utils: KlipperConfigUtils,
+	hasPretunedConfig: boolean,
+) => `
 # Sensorless homing.
 #
 # Tune the sensorless_x_current variable and the SGTHRS/SGT value in this file untill you get reliable homing.
@@ -16,7 +20,8 @@ export const sensorlessXTemplate = (config: PrinterConfiguration, utils: Klipper
 
 [${utils.getAxisDriverSectionName(PrinterAxis.x)}]
 ${utils.getAxisDriverDiagConfig(PrinterAxis.x)}
-${utils.getAxisDriverStallGuardThreshold(PrinterAxis.x, 0.5)}
+${hasPretunedConfig ? '# Printer has a pretuned sensorless homing config, uncomment the next line to override it' : ''}
+${hasPretunedConfig ? '#' : ''}${utils.getAxisDriverStallGuardThreshold(PrinterAxis.x, 0.5)}
 
 [${utils.getAxisStepperName(PrinterAxis.x)}]
 endstop_pin: ${utils.getAxisVirtualEndstop(PrinterAxis.x)}
@@ -24,10 +29,15 @@ homing_retract_dist: 0
 
 [gcode_macro RatOS]
 variable_homing_x: "sensorless"
-variable_sensorless_x_current: ${utils.getAxisDriverHomingCurrent(PrinterAxis.x, 0.35)}
+${hasPretunedConfig ? '# Printer has a pretuned sensorless homing config, uncomment the next line to override it' : ''}
+${hasPretunedConfig ? '#' : ''}variable_sensorless_x_current: ${utils.getAxisDriverHomingCurrent(PrinterAxis.x, 0.35)}
 `;
 
-export const sensorlessYTemplate = (config: PrinterConfiguration, utils: KlipperConfigUtils) => `
+export const sensorlessYTemplate = (
+	config: PrinterConfiguration,
+	utils: KlipperConfigUtils,
+	hasPretunedConfig: boolean,
+) => `
 # Sensorless homing.
 #
 # Tune the current variable and the SGTHRS value in the included file(s) untill you get reliable homing.
@@ -42,7 +52,8 @@ export const sensorlessYTemplate = (config: PrinterConfiguration, utils: Klipper
 
 [${utils.getAxisDriverSectionName(PrinterAxis.y)}]
 ${utils.getAxisDriverDiagConfig(PrinterAxis.y)}
-${utils.getAxisDriverStallGuardThreshold(PrinterAxis.y, 0.5)}
+${hasPretunedConfig ? '# Printer has a pretuned sensorless homing config, uncomment the next line to override it' : ''}
+${hasPretunedConfig ? '#' : ''}${utils.getAxisDriverStallGuardThreshold(PrinterAxis.y, 0.5)}
 
 [stepper_y]
 endstop_pin: ${utils.getAxisVirtualEndstop(PrinterAxis.y)}
@@ -50,5 +61,6 @@ homing_retract_dist: 0
 
 [gcode_macro RatOS]
 variable_homing_y: "sensorless"
-variable_sensorless_y_current: ${utils.getAxisDriverHomingCurrent(PrinterAxis.y, 0.51)}
+${hasPretunedConfig ? '# Printer has a pretuned sensorless homing config, uncomment the next line to override it' : ''}
+${hasPretunedConfig ? '#' : ''}variable_sensorless_y_current: ${utils.getAxisDriverHomingCurrent(PrinterAxis.y, 0.51)}
 `;

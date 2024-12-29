@@ -15,7 +15,7 @@ This thing still need to be dockerized (PR's welcome), but will run on any linux
 
 * Linux or WSL
 * VSCode
-* Node v18.x (i prefer managing this with [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating))
+* Node v20.x (i prefer managing this with [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating))
 * [PNPM](https://pnpm.io/installation)
 
 Most bash scripts will assume user `pi` exists. Needs fixing, fortunately  you don't need them for most work.

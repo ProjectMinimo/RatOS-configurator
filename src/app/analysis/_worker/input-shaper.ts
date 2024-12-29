@@ -121,27 +121,27 @@ const throwIfCancelled = (signal: AbortSignal) => {
 };
 
 async function getShaperSmoothing(shaper: Shaper, accel: number = 5000, scv: number = 5): Promise<number> {
-	const half_accel = accel * 0.5;
+	const halfAccel = accel * 0.5;
 
 	const [A, T] = shaper;
-	const inv_D = 1 / sumArray(A);
+	const invD = 1 / sumArray(A);
 	const n = T.length;
 	// Calculate input shaper shift
-	const ts = sumArray(A.map((a, i) => a * T[i])) * inv_D;
+	const ts = sumArray(A.map((a, i) => a * T[i])) * invD;
 
 	// Calculate offset for 90 and 180 degrees turn
-	let offset_90 = 0;
-	let offset_180 = 0;
+	let offset90 = 0;
+	let offset180 = 0;
 	for (let i = 0; i < n; i++) {
 		if (T[i] >= ts) {
 			// Calculate offset for one of the axes
-			offset_90 += A[i] * (scv + half_accel * (T[i] - ts)) * (T[i] - ts);
+			offset90 += A[i] * (scv + halfAccel * (T[i] - ts)) * (T[i] - ts);
 		}
-		offset_180 += A[i] * half_accel * (T[i] - ts) ** 2;
+		offset180 += A[i] * halfAccel * (T[i] - ts) ** 2;
 	}
-	offset_90 *= inv_D * Math.sqrt(2);
-	offset_180 *= inv_D;
-	return Math.max(offset_90, offset_180);
+	offset90 *= invD * Math.sqrt(2);
+	offset180 *= invD;
+	return Math.max(offset90, offset180);
 }
 
 async function bisect(fn: (x: number) => Promise<boolean>): Promise<number> {
@@ -177,36 +177,36 @@ async function findShaperMaxAccel(shaper: Shaper, scv: number): Promise<number> 
 	return maxAccel;
 }
 
-function estimateShaper(shaper: Shaper, test_damping_ratio: number, test_freqs: Tensor1D): Tensor1D {
+function estimateShaper(shaper: Shaper, testDampingRatio: number, testFreqs: Tensor1D): Tensor1D {
 	return tidy(() => {
 		const A = tensor1d(shaper[0]);
 		const T = tensor1d(shaper[1]);
-		const inv_D = div(1, sum(A));
-		const omega = mul<Tensor1D>(mul<Tensor1D>(test_freqs, 2), Math.PI);
-		const damping = mul<Tensor1D>(omega, test_damping_ratio);
-		const omega_d = mul<Tensor1D>(omega, Math.sqrt(1 - test_damping_ratio ** 2));
+		const invD = div(1, sum(A));
+		const omega = mul<Tensor1D>(mul<Tensor1D>(testFreqs, 2), Math.PI);
+		const damping = mul<Tensor1D>(omega, testDampingRatio);
+		const omegaD = mul<Tensor1D>(omega, Math.sqrt(1 - testDampingRatio ** 2));
 		const W = mul(A, exp(outerProduct(mul<Tensor1D>(damping, -1), sub<Tensor1D>(slice(T, T.size - 1, 1), T))));
-		const S = mul(W, sin(outerProduct(omega_d, T)));
-		const C = mul(W, cos(outerProduct(omega_d, T)));
-		return mul(sqrt(sum(stack([pow(sum(S, 1), 2), pow(sum(C, 1), 2)]), 0)), inv_D);
+		const S = mul(W, sin(outerProduct(omegaD, T)));
+		const C = mul(W, cos(outerProduct(omegaD, T)));
+		return mul(sqrt(sum(stack([pow(sum(S, 1), 2), pow(sum(C, 1), 2)]), 0)), invD);
 	});
 }
 
 async function estimateRemainingVibrations(
 	shaper: Shaper,
-	test_damping_ratio: number,
-	freq_bins: Tensor1D,
+	testDampingRatio: number,
+	freqBins: Tensor1D,
 	psd: Tensor1D,
 ): Promise<[number, Tensor1D]> {
-	const vals = estimateShaper(shaper, test_damping_ratio, freq_bins);
+	const vals = estimateShaper(shaper, testDampingRatio, freqBins);
 	const res = (await tidy(() => {
 		// The input shaper can only reduce the amplitude of vibrations by
 		// SHAPER_VIBRATION_REDUCTION times, so all vibrations below that
 		// threshold can be ignored
-		const vibr_threshold = div(max(psd), shaperDefaults.SHAPER_VIBRATION_REDUCTION);
-		const remaining_vibrations = sum(max(sub(mul(vals, psd), vibr_threshold), 0));
-		const all_vibrations = sum(max(sub(psd, vibr_threshold), 0));
-		return div(remaining_vibrations, all_vibrations);
+		const vibrThreshold = div(max(psd), shaperDefaults.SHAPER_VIBRATION_REDUCTION);
+		const remainingVibrations = sum(max(sub(mul(vals, psd), vibrThreshold), 0));
+		const allVibrations = sum(max(sub(psd, vibrThreshold), 0));
+		return div(remainingVibrations, allVibrations);
 	}).array()) as number;
 	return [res, vals];
 }

@@ -11,6 +11,8 @@
 # misc
 .DS_Store
 *.pem
+.DS_Store
+*:Zone.Identifier
 
 # debug
 npm-debug.log*

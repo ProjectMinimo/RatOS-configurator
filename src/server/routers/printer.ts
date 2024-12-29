@@ -35,13 +35,14 @@ import {
 	deserializePrinterRail,
 	extractToolheadFromPrinterConfiguration,
 	extractToolheadsFromPrinterConfiguration,
+	getAccelerometerWithType,
 	stringToTitleObject,
 } from '@/utils/serialization';
 import { serializePrinterConfiguration } from '@/hooks/usePrinterConfiguration';
 import { BoardWithDetectionStatus } from '@/zods/boards';
 import { QueryLike, RouterLike } from '@trpc/react-query/shared';
 import { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
-import { ToolheadHelper } from '@/helpers/toolhead';
+import { ToolheadHelper, ToolheadSuffix } from '@/helpers/toolhead';
 import { getLastPrinterSettings, hasLastPrinterSettings, savePrinterSettings } from '@/server/helpers/printer-settings';
 import { PrinterAxis } from '@/zods/motion';
 import { ServerCache, cacheAsyncDirectoryFn } from '@/server/helpers/cache';
@@ -181,6 +182,42 @@ export const deserializeToolheadConfiguration = async (
 	const toolboard = toolboards.find((b) => b.id === config.toolboard) ?? null;
 	const xAccels = xAccelerometerOptions({ controlboard }, { toolboard });
 	const yAccels = yAccelerometerOptions({ controlboard }, { toolboard });
+	const serializedXAccel =
+		xAccels.find((a) => a.id === config.xAccelerometer) ??
+		(toolboard && (toolboard.ADXL345SPI != null || toolboard.LIS2DW)
+			? xAccels.find((a) => a.id === 'toolboard')
+			: null);
+	const serializedYAccel =
+		yAccels.find((a) => a.id === config.yAccelerometer) ??
+		(toolboard && (toolboard.ADXL345SPI != null || toolboard.LIS2DW)
+			? yAccels.find((a) => a.id === 'toolboard')
+			: null);
+	const xAccel =
+		serializedXAccel != null
+			? getAccelerometerWithType(
+					serializedXAccel,
+					config.toolNumber != null ? (`t${config.toolNumber}` as ToolheadSuffix) : null,
+					toolboard,
+					controlboard,
+				)
+			: null;
+	const yAccel =
+		serializedYAccel != null
+			? getAccelerometerWithType(
+					serializedYAccel,
+					config.toolNumber != null ? (`t${config.toolNumber}` as ToolheadSuffix) : null,
+					toolboard,
+					controlboard,
+				)
+			: null;
+
+	if (xAccel == null && serializedXAccel != null && serializedXAccel.id != 'none') {
+		throw new Error(`Accelerometer type could not be determined for ${serializedXAccel.id}`);
+	}
+	if (yAccel == null && serializedYAccel != null && serializedYAccel.id != 'none') {
+		throw new Error(`Accelerometer type could not be determined for ${serializedYAccel.id}`);
+	}
+
 	const res = {
 		...config,
 		toolboard: toolboard,
@@ -190,16 +227,8 @@ export const deserializeToolheadConfiguration = async (
 		thermistor: thermistors.find((t) => t === config.thermistor),
 		xEndstop: xEndstopOptions({ controlboard }, { toolboard, axis: config.axis }).find((e) => e.id === config.xEndstop),
 		yEndstop: yEndstopOptions({ controlboard }, { toolboard, axis: config.axis }).find((e) => e.id === config.yEndstop),
-		xAccelerometer:
-			xAccels.find((a) => a.id === config.xAccelerometer) ??
-			(toolboard && (toolboard.ADXL345SPI != null || toolboard.LIS2DW)
-				? xAccels.find((a) => a.id === 'toolboard')
-				: null),
-		yAccelerometer:
-			yAccels.find((a) => a.id === config.yAccelerometer) ??
-			(toolboard && (toolboard.ADXL345SPI != null || toolboard.LIS2DW)
-				? yAccels.find((a) => a.id === 'toolboard')
-				: null),
+		xAccelerometer: serializedXAccel != null ? { ...serializedXAccel, accelerometerType: xAccel?.type } : null,
+		yAccelerometer: serializedYAccel != null ? { ...serializedYAccel, accelerometerType: yAccel?.type } : null,
 		partFan: partFanOptions({ controlboard }, { toolboard, axis: config.axis }).find((f) => f.id === config.partFan),
 		hotendFan: hotendFanOptions({ controlboard }, { toolboard, axis: config.axis }).find(
 			(f) => f.id === config.hotendFan,

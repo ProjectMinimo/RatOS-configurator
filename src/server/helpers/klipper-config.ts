@@ -2,7 +2,7 @@ import { PrinterConfiguration } from '@/zods/printer-configuration';
 import { sensorlessXTemplate, sensorlessYTemplate } from '@/templates/extras/sensorless-homing';
 import { Limits, PrinterAxis, PrinterRail, matchesDefaultRail } from '@/zods/motion';
 import { findPreset } from '@/data/steppers';
-import { deserializePrinterRailDefinition } from '@/utils/serialization';
+import { deserializePrinterRailDefinition, getAccelerometerWithType } from '@/utils/serialization';
 import {
 	ControlPins,
 	getExtruderRotationDistance,
@@ -31,6 +31,7 @@ import path from 'path';
 import { serverSchema } from '@/env/schema.mjs';
 import { AccelerometerType, KlipperAccelSensorName, klipperAccelSensorSchema } from '@/zods/hardware';
 import { getLogger } from '@/server/helpers/logger';
+import { ToolheadSuffix } from '@/helpers/toolhead';
 
 type WritableFiles = { fileName: string; content: string; overwrite: boolean; order?: number }[];
 type ExcludeStepperParameters<T extends string> = (T extends
@@ -204,7 +205,7 @@ export const constructKlipperConfigUtils = async (config: PrinterConfiguration) 
 			const rail = this.getRail(axis);
 			factor = Math.max(0, Math.min(1, factor));
 			if (['TMC2130', 'TMC5160', 'TMC2240'].includes(rail.driver.type)) {
-				return `driver_SGT: ${Math.round(factor * 127) - 64} # Lower value = higher sensitity, range -64 to 63`;
+				return `driver_SGT: ${Math.round(factor * 127) - 64} # Lower value = higher sensitivity, range -64 to 63`;
 			} else {
 				return `driver_SGTHRS: ${Math.round(factor * 255)} # Lower value = lower sensitivity, range 0 to 255`;
 			}
@@ -221,7 +222,7 @@ export const constructKlipperConfigUtils = async (config: PrinterConfiguration) 
 		getAxisDriverHomingCurrent(axis: PrinterAxis, factor: number) {
 			const rail = this.getRail(axis);
 			factor = Math.max(0, Math.min(1, factor));
-			return rail.stepper.maxPeakCurrent * 0.71 * factor;
+			return Math.round(rail.stepper.maxPeakCurrent * 0.71 * factor * 1000) / 1000;
 		},
 		getExtruderPinPrefix(tool: ToolOrAxis = 0) {
 			const th = this.getToolhead(tool);
@@ -305,36 +306,29 @@ export const constructKlipperConfigUtils = async (config: PrinterConfiguration) 
 			}
 			return this.renderCommentHeader(header ?? rail.axis.toUpperCase(), section);
 		},
-		getAccelWithType(accelerometerName: KlipperAccelSensorName) {
-			let accelType: z.infer<typeof AccelerometerType> = 'adxl345';
-
+		getAccelWithType(accelerometerName: KlipperAccelSensorName | null) {
+			if (accelerometerName == null) {
+				return null;
+			}
 			if (accelerometerName === 'controlboard') {
-				if (config.controlboard?.ADXL345SPI != null) {
-					accelType = 'adxl345';
-				}
-				if (config.controlboard?.LIS2DW != null) {
-					accelType = 'lis2dw';
-				}
+				return getAccelerometerWithType({ id: 'controlboard', title: 'Controlboard' }, null, null, config.controlboard);
 			}
 			if (accelerometerName === 'toolboard_t0' || accelerometerName === 'toolboard_t1') {
 				const toolboard = toolheads.find((t) => t.getToolboardName() === accelerometerName)?.getToolboard();
-				if (toolboard == null) {
-					throw new Error(`No toolboard found for T0`);
-				}
-				if (toolboard.ADXL345SPI != null) {
-					accelType = 'adxl345';
-				}
-				if (toolboard.LIS2DW != null) {
-					accelType = 'lis2dw';
-				}
+				return getAccelerometerWithType(
+					{ id: 'toolboard', title: 'Toolboard' },
+					accelerometerName.split('_')[1] as ToolheadSuffix,
+					toolboard,
+					config.controlboard,
+				);
 			}
 			if (accelerometerName === 'beacon') {
-				accelType = 'beacon';
+				return getAccelerometerWithType({ id: 'beacon', title: 'Beacon' }, null, null, config.controlboard);
 			}
-			return klipperAccelSensorSchema.parse({
-				name: accelerometerName,
-				type: accelType,
-			});
+			if (accelerometerName === 'rpi') {
+				return getAccelerometerWithType({ id: 'sbc', title: 'Toolboard' }, null, null, config.controlboard);
+			}
+			throw new Error(`Unknown accelerometer name: ${accelerometerName}`);
 		},
 	};
 };
@@ -388,19 +382,19 @@ export const constructKlipperConfigExtrasGenerator = (config: PrinterConfigurati
 				return [`[save_variables]`, `filename: ${path.join(environment.KLIPPER_CONFIG_PATH, f.fileName)}`].join('\n');
 			});
 		},
-		generateSensorlessHomingIncludes() {
+		generateSensorlessHomingIncludes(hasPretunedConfig: boolean) {
 			const filesToWrite: WritableFiles = [];
 			if (utils.isSensorless(PrinterAxis.x)) {
 				filesToWrite.push({
 					fileName: 'sensorless-homing-x.cfg',
-					content: sensorlessXTemplate(config, utils),
+					content: sensorlessXTemplate(config, utils, hasPretunedConfig),
 					overwrite: false,
 				});
 			}
 			if (utils.isSensorless(PrinterAxis.y)) {
 				filesToWrite.push({
 					fileName: 'sensorless-homing-y.cfg',
-					content: sensorlessYTemplate(config, utils),
+					content: sensorlessYTemplate(config, utils, hasPretunedConfig),
 					overwrite: false,
 				});
 			}
@@ -657,6 +651,8 @@ export const constructKlipperConfigHelpers = async (
 				const marginMax = rail.axis !== PrinterAxis.y ? config.printer.bedMargin.x[1] : config.printer.bedMargin.y[1];
 				Object.entries(typeof limits == 'function' ? limits({ min: marginMin, max: marginMax }) : limits).forEach(
 					([key, value]) => {
+						// Make sure that position_min is at least -5 to allow for probe calibration (and componensation functions).
+						// Very much dislike that this is necessary.
 						section.push(
 							`position_${key}: ${rail.axis === PrinterAxis.z && key === 'min' ? Math.min(value, -5) : value}`,
 						);
@@ -717,9 +713,9 @@ export const constructKlipperConfigHelpers = async (
 						section.push(`${key}: ${pin}`);
 					});
 				} else {
-					let cs_pin = utils.getRailPinValue(rail.axis, '_uart_pin');
+					let csPin = utils.getRailPinValue(rail.axis, '_uart_pin');
 					try {
-						cs_pin = utils.getRailPinValue(rail.axis, '_cs_pin');
+						csPin = utils.getRailPinValue(rail.axis, '_cs_pin');
 					} catch {
 						// getLogger().error(
 						// 	{
@@ -731,7 +727,7 @@ export const constructKlipperConfigHelpers = async (
 						// 	'Failed to get cs_pin for axis.. falling back to uart_pin',
 						// );
 					}
-					section.push(`cs_pin: ${cs_pin}`);
+					section.push(`cs_pin: ${csPin}`);
 					if (utils.isExtruderToolheadAxis(rail.axis)) {
 						const toolboard = utils.getToolhead(rail.axis).getToolboard();
 						if (toolboard?.stepperSPI != null) {
@@ -785,15 +781,15 @@ export const constructKlipperConfigHelpers = async (
 		},
 		renderSpeedLimits() {
 			const limits =
-				config.performanceMode && config.printer.speedLimits.performance
+				config.performanceMode && config.printer.speedLimits.performance && !config.stealthchop
 					? config.printer.speedLimits.performance
 					: config.printer.speedLimits.basic;
 			return [
 				`[printer]`,
-				`max_velocity: ${config.stealthchop ? '135' : limits.velocity}`,
+				`max_velocity: ${config.stealthchop ? 135 : limits.velocity}`,
 				`max_accel: ${limits.accel / (config.stealthchop ? 2 : 1)}`,
 				`minimum_cruise_ratio: ${config.stealthchop ? 0.25 : 0.5}`,
-				`max_z_velocity: ${limits.z_velocity}`,
+				`max_z_velocity: ${config.stealthchop ? 10 : limits.z_velocity}`,
 				`max_z_accel: ${limits.z_accel}`,
 				`square_corner_velocity: ${limits.square_corner_velocity}`,
 				``,
@@ -858,16 +854,25 @@ export const constructKlipperConfigHelpers = async (
 			}
 			const xAccel = utils.getAccelWithType(xToolhead.getXAccelerometerName());
 			const yAccel = utils.getAccelWithType(xToolhead.getYAccelerometerName());
-			result.push('[resonance_tester]');
-			if (xAccel.type === 'beacon') {
-				result.push(`accel_chip_x: ${xAccel.type}`);
-			} else {
-				result.push(`accel_chip_x: ${xAccel.type} ${xAccel.name}`);
+			if (xAccel == null && yAccel == null) {
+				return '';
 			}
-			if (yAccel.type === 'beacon') {
-				result.push(`accel_chip_y: ${yAccel.type}`);
-			} else {
-				result.push(`accel_chip_y: ${yAccel.type} ${yAccel.name}`);
+			result.push('[resonance_tester]');
+			if (xAccel != null) {
+				const prefix = yAccel != null ? 'accel_chip_x' : 'accel_chip';
+				if (xAccel.type === 'beacon') {
+					result.push(`${prefix}: ${xAccel.type}`);
+				} else {
+					result.push(`${prefix}: ${xAccel.type} ${xAccel.name}`);
+				}
+			}
+			if (yAccel != null) {
+				const prefix = xAccel != null ? 'accel_chip_y' : 'accel_chip';
+				if (yAccel.type === 'beacon') {
+					result.push(`${prefix}: ${yAccel.type}`);
+				} else {
+					result.push(`${prefix}: ${yAccel.type} ${yAccel.name}`);
+				}
 			}
 			result.push('probe_points:');
 			result.push(`\t${printerSize.x / 2},${printerSize.y / 2},20`);
@@ -906,6 +911,9 @@ export const constructKlipperConfigHelpers = async (
 							const reminder: string[] = [];
 							reminder.push('# REMEMBER TO CALIBRATE YOUR BEACON!');
 							reminder.push('# Run BEACON_RATOS_CALIBRATE for automatic calibration.');
+							result.push('# Offset mesh relative to the z height at home position');
+							result.push('[bed_mesh]');
+							result.push(`zero_reference_position: ${config.size.x / 2},${config.size.y / 2}`);
 							extrasGenerator.addReminder(reminder.join('\n'));
 						}
 						break;
@@ -1001,15 +1009,24 @@ export const constructKlipperConfigHelpers = async (
 						))
 				) {
 					result.push(`[include ${pretunedSensorlessConfig}]`);
+					result.push(extrasGenerator.generateSensorlessHomingIncludes(true));
 				} else {
-					result.push(extrasGenerator.generateSensorlessHomingIncludes());
+					result.push(extrasGenerator.generateSensorlessHomingIncludes(false));
 				}
 			}
 			if (utils.getToolheads().every((th) => th.getProbe() == null)) {
 				result.push(''); // Add a newline for readability.
 				result.push(`# Physical Z endstop configuration`);
 				result.push(`[stepper_z]`);
-				result.push(`pin: z_endstop_pin`);
+				try {
+					result.push(`endstop_pin: ${utils.getRailPinValue(PrinterAxis.z, '_endstop_pin')}`);
+				} catch (e) {
+					try {
+						result.push(`endstop_pin: ${utils.getRailPinValue(PrinterAxis.z, '_diag_pin')}`);
+					} catch (e) {
+						result.push(`# endstop_pin: <pin> # Override this with the correct pin in printer.cfg`);
+					}
+				}
 				result.push(`position_endstop: -0.1`);
 				result.push(`second_homing_speed: 3.0`);
 				result.push(`homing_retract_dist: 3.0`);
@@ -1029,8 +1046,8 @@ export const constructKlipperConfigHelpers = async (
 				result.push(
 					`variable_default_toolhead: ${probeTool}                             # the toolhead with the z-probe, 0=left 1=right toolhead`,
 				);
-				const firstADXL = utils.getToolhead(0).getXAccelerometerName();
-				const secondADXL = utils.getToolhead(1).getXAccelerometerName();
+				const firstADXL = `${utils.getToolhead(0).getXAccelerometer()?.accelerometerType ?? 'adxl345'} ${utils.getToolhead(0).getYAccelerometerName()}`;
+				const secondADXL = `${utils.getToolhead(1).getXAccelerometer()?.accelerometerType ?? 'adxl345'} ${utils.getToolhead(1).getYAccelerometerName()}`;
 				result.push(`variable_adxl_chip: ["${firstADXL}", "${secondADXL}"]           # toolheads adxl chip names`);
 				result.push(`variable_toolchange_travel_speed: ${this.getMacroTravelSpeed()}     # parking travel speed`);
 				result.push(`variable_toolchange_travel_accel: ${this.getMacroTravelAccel()}     # parking travel accel`);
@@ -1064,31 +1081,6 @@ export const constructKlipperConfigHelpers = async (
 		},
 		renderSaveVariables(options?: VAOCControlPoints) {
 			return extrasGenerator.generateSaveVariables(options).join('\n');
-		},
-		renderUserMacroVariableOverrides(size?: number) {
-			const result: string[] = [
-				`variable_macro_travel_speed: ${this.getMacroTravelSpeed()}`,
-				`variable_macro_travel_accel: ${this.getMacroTravelAccel()}`,
-			];
-			const toolheads = utils.getToolheads();
-			const isIdex = toolheads.some((th) => th.getMotionAxis() === PrinterAxis.dual_carriage);
-			if (isIdex) {
-				result.push(`variable_toolchange_travel_speed: ${this.getMacroTravelSpeed()}     # parking travel speed`);
-				result.push(`variable_toolchange_travel_accel: ${this.getMacroTravelAccel()}     # parking travel accel`);
-				result.push(
-					`variable_shaper_x_freq: [0, 0, 0, 0]                    # shaper frequency [T0, T1, COPY, MIRROR]`,
-				);
-				result.push(
-					`variable_shaper_y_freq: [0, 0, 0, 0]                    # shaper frequency [T0, T1, COPY, MIRROR]`,
-				);
-				result.push(
-					`variable_shaper_x_type: ["mzv", "mzv", "mzv", "mzv"]    # shaper frequency algorythm [T0, T1, COPY, MIRROR]`,
-				);
-				result.push(
-					`variable_shaper_y_type: ["mzv", "mzv", "mzv", "mzv"]    # shaper frequency algorythm [T0, T1, COPY, MIRROR]`,
-				);
-			}
-			return utils.formatInlineComments(result).join('\n');
 		},
 		renderControllerFan() {
 			let result: string[] = [];

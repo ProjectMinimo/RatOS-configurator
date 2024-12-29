@@ -20,10 +20,34 @@ jobs:
         run: |
           echo "CI step didn't pass, exiting"
           exit 1
+      - name: Set variables
+        id: variables
+        shell: bash
+        run: |
+          echo "target-branch=dev-deployment" >> "$GITHUB_OUTPUT"
+          echo "src-branch=development" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v3
         with:
-          ref: development
+          ref: ${{ steps.variables.outputs.src-branch }}
+    
+      - name: Unshallow repository
+        run: git fetch --unshallow origin ${{ steps.variables.outputs.src-branch }}
+
+      - name: Get last successful commit
+        id: last-successful-commit
+        uses: tylermilner/last-successful-commit-hash-action@v1
+        with:
+          workflow-id: publish-development.yml
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          branch: development # This has to be the main branch of repository since all workflows are run from there
+
+      - name: Get commit count
+        id: commit-count
+        shell: bash
+        run: |
+          echo "Deploying $(git rev-list --count ${{ steps.last-successful-commit.outputs.commit-hash }}..${{ github.sha }})) commits!"
+          echo "commit-count=$(git rev-list --count ${{ steps.last-successful-commit.outputs.commit-hash }}..${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v3
         with:
@@ -40,26 +64,26 @@ jobs:
         id: pnpm-cache
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          echo "store_path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/cache@v3
         name: Setup pnpm cache
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          path: ${{ steps.pnpm-cache.outputs.store_path }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: Setup Next.js cache
+        id: cache-nextjs-restore
         with:
           path: |
-            ${{ github.workspace }}/src/.next/cache
+            ${{ github.workspace }}/src/build/cache
           # Generate a new cache whenever packages or source files change.
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
-          # If source files changed but packages didn't, rebuild from a prior cache.
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+            ${{ runner.os }}-nextjs-
 
       - name: Install all dependencies
         working-directory: ./src
@@ -73,11 +97,30 @@ jobs:
         working-directory: ./src
         run: pnpm build:cli
 
-      - name: Push
-        uses: s0/git-publish-subdir-action@develop
-        env:
-          REPO: self
-          BRANCH: dev-deployment # The branch name where you want to push the assets
-          FOLDER: "src" # The directory where your assets are generated
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub will automatically add this - you don't need to bother getting a token
-          MESSAGE: "Build: ({sha}) {msg}" # The commit message
+      - uses: actions/cache/save@v4
+        name: Setup Next.js cache
+        id: cache-nextjs-save
+        with:
+          path: |
+            ${{ github.workspace }}/src/build/cache
+          key: ${{ steps.cache-nextjs-restore.outputs.cache-primary-key }}
+
+      - name: Delete files not needed in deployment
+        working-directory: ./src
+        run: rm -rf __tests__ app pages components coverage data helpers hooks moonraker env recoil server utils zods test-setup.ts vitest.config.mts tsconfig.vitest.json copy-files-from-to.json components.json postcss.config.js prettier.config.mjs tailwind.config.ts
+
+      - name: Rename src/ to app/
+        working-directory: ./
+        run: mv src app
+
+      - name: Publish to ${{ steps.variables.outputs.target-branch }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: .
+          commit-message: |
+            Deployed ${{ steps.commit-count.outputs.commit-count }} commit${{ steps.commit-count.outputs.commit-count > 1 && 's' || '' }}.
+            
+            https://github.com/Rat-OS/RatOS-configurator/compare/${{ steps.last-successful-commit.outputs.commit-hash }}...${{ github.sha }}
+          git-config-name: Mikkel Schmidt
+          git-config-email: mikkel.schmidt@gmail.com
+          branch: ${{ steps.variables.outputs.target-branch }} # The branch name where you want to push the assets

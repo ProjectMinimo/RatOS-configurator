@@ -242,12 +242,18 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 	}, [supportedVoltages, voltage, recommendedPreset]);
 
 	useEffect(() => {
-		const newState = {
-			axis: props.printerRail.axis,
-			axisDescription: props.printerRail.axisDescription,
-			rotationDistance: props.printerRail.rotationDistance,
+		const newState: Zod.infer<typeof BasePrinterRail> = {
+			axis: props.printerRailDefault.axis,
+			axisDescription: props.printerRailDefault.axisDescription,
+			rotationDistance: props.printerRailDefault.rotationDistance,
+			invertStepperDirection: props.printerRailDefault.invertStepperDirection,
+			axisMinimum: props.printerRailDefault.axisMinimum,
+			axisMaximum: props.printerRailDefault.axisMaximum,
+			axisEndstop: props.printerRailDefault.axisEndstop,
 			homingSpeed: homingSpeed,
 			motorSlot: motorSlot,
+			microstepping: props.printerRailDefault.microstepping,
+			gearRatio: props.printerRailDefault.gearRatio,
 			driver,
 			voltage: voltage.id,
 			stepper,
@@ -263,7 +269,25 @@ export const PrinterRailSettings: React.FC<PrinterRailSettingsProps> = (props) =
 				setPrinterRail(serializedNew);
 			});
 		}
-	}, [current, driver, props.printerRail, homingSpeed, setPrinterRail, stepper, voltage.id, motorSlot]);
+	}, [
+		current,
+		driver,
+		props.printerRail,
+		homingSpeed,
+		setPrinterRail,
+		stepper,
+		voltage.id,
+		motorSlot,
+		props.printerRailDefault.axis,
+		props.printerRailDefault.axisDescription,
+		props.printerRailDefault.rotationDistance,
+		props.printerRailDefault.invertStepperDirection,
+		props.printerRailDefault.axisMinimum,
+		props.printerRailDefault.axisMaximum,
+		props.printerRailDefault.axisEndstop,
+		props.printerRailDefault.microstepping,
+		props.printerRailDefault.gearRatio,
+	]);
 
 	const isRecommendedPresetCompatible = recommendedPreset && recommendedPreset.run_current === current;
 	const railName =

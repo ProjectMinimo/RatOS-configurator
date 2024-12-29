@@ -1,5 +1,6 @@
 {
 	"typescript.tsdk": "src/node_modules/typescript/lib",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
     "tailwindCSS.experimental.classRegex": [
         ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
         ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
@@ -36,5 +37,9 @@
 	},
 	"[github-actions-workflow]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
-	}
+	},
+	"shellcheck.useWorkspaceRootAsCwd": true,
+	"prettier.useTabs": true,
+	"editor.detectIndentation": false,
+	"python.REPL.enableREPLSmartSend": false
 }

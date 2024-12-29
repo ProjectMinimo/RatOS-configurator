@@ -351,7 +351,7 @@ export const Board = z
 				z.string().regex(/^\S+$/),
 				z.object({
 					name: z.string().optional(),
-					parameters: z.record(z.string().regex(/^\S+$/), z.string().or(z.number())),
+					parameters: z.record(z.string().regex(/^\S+$/), z.string().or(z.number()).or(z.boolean())),
 					comments: z.array(z.string()).default([]),
 				}),
 			)

@@ -1,7 +1,9 @@
 type Unpacked<T> = T extends Array<infer U> ? U : T extends ReadonlyArray<infer U> ? U : T;
 
+// eslint-disable-next-line camelcase
 declare const __nominal__type: unique symbol;
 type Nominal<Type, Identifier> = Type & {
+	// eslint-disable-next-line camelcase
 	readonly [__nominal__type]: Identifier;
 };
 
@@ -63,22 +65,3 @@ type GitVersion = `${number}.${number}.${number}${`-${number}` | ``}${`-${string
 type GCode = Nominal<string, 'G-Code'>;
 
 type ReactCallback<T extends Function> = ReturnType<typeof React.useCallback<T>>;
-
-declare module 'tailwindcss/lib/util/flattenColorPalette' {
-	export default function flattenColorPalette(
-		colors: Record<string, string | Record<string, string>>,
-	): Record<string, string>;
-}
-
-declare module 'tailwindcss/lib/util/color' {
-	export const parseColor: (color: string) => {
-		mode: 'hsl' | 'rgb' | 'hsla' | 'rgba';
-		color: [number, number, number];
-		alpha?: string;
-	};
-	export const formatColor: (color: {
-		mode: 'hsl' | 'rgb' | 'hsla' | 'rgba';
-		color: [number, number, number];
-		alpha?: string;
-	}) => string;
-}

@@ -137,7 +137,9 @@ export const Analysis = () => {
 		() => toolheads.some((th) => th.getYAccelerometerName() === 'beacon' || th.getXAccelerometerName() === 'beacon'),
 		[toolheads],
 	);
-	const [adxl, setAdxl] = useState<MacroRecordingSettings['accelerometer']>(toolheads[0].getYAccelerometerName());
+	const [adxl, setAdxl] = useState<MacroRecordingSettings['accelerometer']>(
+		toolheads[0].getYAccelerometerName() ?? 'controlboard',
+	);
 	const {
 		isChartEnabled,
 		isLoading,

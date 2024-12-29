@@ -3,7 +3,7 @@ if [ ! "$EUID" -eq 0 ]; then
 	echo "This script must run as root"
 	exit 1
 fi
-NETWORK=$(sh -c "wpa_passphrase '$1' '$2'")
+NETWORK=$(sh -c "wpa_passphrase '$1' '$2' | sed '/^\s*#psk=\".*\"$/d'")
 if [[ ! $NETWORK =~ ^network ]]; then
 	echo "Invalid wifi credentials"
 	exit 1
@@ -87,7 +87,7 @@ __EOF
 # autohotspotN
 
 function get_sbc  {
-    cat /etc/board-release | grep BOARD_NAME | cut -d '=' -f2
+    grep BOARD_NAME /etc/board-release | cut -d '=' -f2
 }
 
 #CB1

@@ -17,7 +17,7 @@ import { getBoardChipId } from '@/helpers/board';
 import { constructKlipperConfigUtils } from '@/server/helpers/klipper-config';
 import { sensorlessXTemplate, sensorlessYTemplate } from '@/templates/extras/sensorless-homing';
 import { readFile } from 'fs/promises';
-import { SerializedPrinterConfiguration } from '@/zods/printer-configuration';
+import { PrinterConfiguration, SerializedPrinterConfiguration } from '@/zods/printer-configuration';
 import { PrinterDefinition } from '@/zods/printer';
 import { Accelerometer } from '@/zods/hardware';
 import { z } from 'zod';
@@ -25,6 +25,7 @@ import { serializePrinterConfiguration } from '@/hooks/usePrinterConfiguration';
 import { glob } from 'glob';
 import { serverSchema } from '@/env/schema.mjs';
 import { existsSync } from 'fs';
+import { PrinterAxis } from '@/zods/motion';
 
 const serializedConfigFromDefaults = (printer: PrinterDefinition): SerializedPrinterConfiguration => {
 	return SerializedPrinterConfiguration.strip().parse({
@@ -51,6 +52,32 @@ const serializedConfigFromDefaults = (printer: PrinterDefinition): SerializedPri
 		stealthchop: false,
 		controllerFan: printer.defaults.controllerFan ?? '2pin',
 	} satisfies SerializedPrinterConfiguration);
+};
+
+const loadConfig = async (path: string) => {
+	const config = await loadSerializedConfig(path);
+	const files = await getFilesToWrite(config);
+	const res: string = files.find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
+	const splitRes = res.split('\n');
+	const annotatedLines = splitRes.map((l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`);
+	return {
+		splitRes,
+		annotatedLines,
+		config,
+		files,
+	};
+};
+
+const expectValidConfig = async (config: PrinterConfiguration, splitRes: string[], annotatedLines: string[]) => {
+	const noUndefined = splitRes.filter((l: string) => l.includes('undefined')).join('\n');
+	const noPromises = splitRes.filter((l: string) => l.includes('[object Promise]')).join('\n');
+	const noObjects = splitRes.filter((l: string) => l.includes('[object Object]')).join('\n');
+	if (noUndefined || noPromises || noObjects) {
+		console.log(annotatedLines.join('\n'));
+	}
+	expect(noUndefined, 'Expected no undefined values in config').to.eq('');
+	expect(noPromises, 'Expected no promises in config').to.eq('');
+	expect(noObjects, 'Expected no objects in config').to.eq('');
 };
 
 describe('server', async () => {
@@ -175,23 +202,11 @@ describe('server', async () => {
 	describe('regression tests', async () => {
 		describe('can generate a default v-core config', async () => {
 			const vCoreConfigPath = path.join(__dirname, 'fixtures', 'v-core-200.json');
-			const config = await loadSerializedConfig(vCoreConfigPath);
-			const res: string = (await getFilesToWrite(config)).find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
-			const splitRes = res.split('\n');
-			const annotatedLines = splitRes.map((l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`);
+			const { splitRes, annotatedLines, config } = await loadConfig(vCoreConfigPath);
 			const gcodeBlocks: number[] = [];
 			splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
 			test('produces valid config', async () => {
-				expect(splitRes.length).toBeGreaterThan(0);
-				const noUndefined = splitRes.filter((l: string) => l.includes('undefined')).join('\n');
-				const noPromises = splitRes.filter((l: string) => l.includes('[object Promise]')).join('\n');
-				const noObjects = splitRes.filter((l: string) => l.includes('[object Object]')).join('\n');
-				if (noUndefined || noPromises || noObjects) {
-					console.log(annotatedLines.join('\n'));
-				}
-				expect(noUndefined, 'Expected no undefined values in config').to.eq('');
-				expect(noPromises, 'Expected no promises in config').to.eq('');
-				expect(noObjects, 'Expected no objects in config').to.eq('');
+				expectValidConfig(config, splitRes, annotatedLines);
 			});
 			test('can diff files', async () => {
 				const configJson = await readFile(vCoreConfigPath);
@@ -211,23 +226,12 @@ describe('server', async () => {
 			});
 		});
 		describe('can generate idex config', async () => {
-			const config = await loadSerializedConfig(path.join(__dirname, 'fixtures', 'idex-config.json'));
-			const res: string = (await getFilesToWrite(config)).find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
-			const splitRes = res.split('\n');
-			const annotatedLines = splitRes.map((l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`);
+			const idexConfigPath = path.join(__dirname, 'fixtures', 'idex-config.json');
+			const { splitRes, annotatedLines, config } = await loadConfig(idexConfigPath);
 			const gcodeBlocks: number[] = [];
 			splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
 			test('produces valid config', async () => {
-				expect(splitRes.length).toBeGreaterThan(0);
-				const noUndefined = splitRes.filter((l: string) => l.includes('undefined')).join('\n');
-				const noPromises = splitRes.filter((l: string) => l.includes('[object Promise]')).join('\n');
-				const noObjects = splitRes.filter((l: string) => l.includes('[object Object]')).join('\n');
-				if (noUndefined || noPromises || noObjects) {
-					console.log(annotatedLines.join('\n'));
-				}
-				expect(noUndefined, 'Expected no undefined values in config').to.eq('');
-				expect(noPromises, 'Expected no promises in config').to.eq('');
-				expect(noObjects, 'Expected no objects in config').to.eq('');
+				expectValidConfig(config, splitRes, annotatedLines);
 			});
 			test.runIf(gcodeBlocks.length > 0)('correctly indents gcode blocks', async () => {
 				for (const block of gcodeBlocks) {
@@ -241,13 +245,54 @@ describe('server', async () => {
 				}
 			});
 		});
+		describe('can generate a valid mk3s config', async () => {
+			const prusaMk3sConfigPath = path.join(__dirname, 'fixtures', 'prusa-mk3s.json');
+			const { splitRes, annotatedLines, config, files } = await loadConfig(prusaMk3sConfigPath);
+			test('produces valid config', async () => {
+				expectValidConfig(config, splitRes, annotatedLines);
+			});
+			const resonanceTesterBlocks: number[] = [];
+			splitRes.forEach((l, i) => l.includes('[resonance_tester]') && resonanceTesterBlocks.push(i));
+			test('does not include resonance tester in the config', async () => {
+				for (const block of resonanceTesterBlocks) {
+					try {
+						expect(splitRes[block].includes('[resonance_tester]')).toBeFalsy();
+					} catch (e) {
+						throw new Error(
+							`Found resonance tester in the config:\n${annotatedLines.slice(block - 4, block + 5).join('\n')}`,
+						);
+					}
+				}
+			});
+			const sensorlessBlocks: number[] = [];
+			const endstopBlocks: number[] = [];
+			splitRes.forEach((l, i) => l.includes('[include sensorless-homing') && sensorlessBlocks.push(i));
+			splitRes.forEach((l, i) => l.includes('variable_homing_x: "endstop"') && endstopBlocks.push(i));
+			splitRes.forEach((l, i) => l.includes('variable_homing_y: "endstop"') && endstopBlocks.push(i));
+			test('correctly configures sensorless homing', async () => {
+				try {
+					expect(endstopBlocks.length).toBeLessThan(1);
+				} catch (e) {
+					throw new Error(
+						`Found endstop configuration:\n${annotatedLines.slice(endstopBlocks[0] - 4, endstopBlocks[0] + 5).join('\n')}`,
+					);
+				}
+				expect(sensorlessBlocks.length).toBe(2);
+			});
+			test('correctly comments out generated sensorless defaults', async () => {
+				expect(files.find((f) => f.fileName === 'sensorless-homing-x.cfg')?.content).toContain(
+					'#variable_sensorless_x_current: ',
+				);
+				expect(files.find((f) => f.fileName === 'sensorless-homing-y.cfg')?.content).toContain(
+					'#variable_sensorless_y_current: ',
+				);
+				expect(files.find((f) => f.fileName === 'sensorless-homing-x.cfg')?.content).toContain('#driver_SGT: 0');
+				expect(files.find((f) => f.fileName === 'sensorless-homing-y.cfg')?.content).toContain('#driver_SGT: 0');
+			});
+		});
 		describe('can generate another idex config', async () => {
-			const config = await loadSerializedConfig(path.join(__dirname, 'fixtures', 'another-idex.json'));
-			const filesToWrite = await getFilesToWrite(config);
-			const res: string = filesToWrite.find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
-			const printerCfg: string = filesToWrite.find((f) => f.fileName === 'ratos-variables.cfg')?.content ?? '';
-			const splitRes = res.split('\n');
-			const annotatedLines = splitRes.map((l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`);
+			const idexConfigPath = path.join(__dirname, 'fixtures', 'another-idex.json');
+			const { splitRes, annotatedLines, config } = await loadConfig(idexConfigPath);
 			const gcodeBlocks: number[] = [];
 			splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
 			test('produces valid config', async () => {
@@ -277,11 +322,8 @@ describe('server', async () => {
 			});
 		});
 		describe('can resolve pins that are only defined in motorslots and not aliases', async () => {
-			const config = await loadSerializedConfig(path.join(__dirname, 'fixtures', 'idex-undefined-pins.json'));
-			const filesToWrite = await getFilesToWrite(config);
-			const res: string = filesToWrite.find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
-			const splitRes = res.split('\n');
-			const annotatedLines = splitRes.map((l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`);
+			const idexConfigPath = path.join(__dirname, 'fixtures', 'idex-undefined-pins.json');
+			const { splitRes, annotatedLines, config } = await loadConfig(idexConfigPath);
 			const suspectedMissingPins: string[] = [
 				`y1_step_pin=`,
 				`y1_dir_pin=`,
@@ -340,21 +382,12 @@ describe('server', async () => {
 			let debugLines: string[] = [];
 			let generatedLines: string[] = [];
 			test('produces valid config', async () => {
-				const config = await loadSerializedConfig(path.join(__dirname, 'fixtures', 'hybrid-config.json'));
+				const hybridConfigPath = path.join(__dirname, 'fixtures', 'hybrid-config.json');
+				const { splitRes, annotatedLines, config } = await loadConfig(hybridConfigPath);
 				expect(config.printer.kinematics).toEqual('hybrid-corexy');
-				const res: string = (await getFilesToWrite(config)).find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
-				generatedLines = res.split('\n');
-				debugLines = generatedLines.map((l: string, i: number) => `Line ${i + 1}`.padEnd(10, ' ') + `|${l}`);
-				expect(debugLines.length).toBeGreaterThan(0);
-				const noUndefined = debugLines.filter((l: string) => l.includes('undefined')).join('\n');
-				const noPromises = debugLines.filter((l: string) => l.includes('[object Promise]')).join('\n');
-				const noObjects = debugLines.filter((l: string) => l.includes('[object Object]')).join('\n');
-				if (noUndefined || noPromises || noObjects) {
-					console.log(debugLines.join('\n'));
-				}
-				expect(noUndefined, 'Expected no undefined values in config').to.eq('');
-				expect(noPromises, 'Expected no promises in config').to.eq('');
-				expect(noObjects, 'Expected no objects in config').to.eq('');
+				debugLines = annotatedLines;
+				generatedLines = splitRes;
+				expectValidConfig(config, splitRes, annotatedLines);
 				expect(generatedLines.includes(`variable_x_axes: ["x"]`)).toBeTruthy();
 				expect(generatedLines.includes(`variable_x_driver_types: ["tmc2209"]`)).toBeTruthy();
 				expect(generatedLines.includes(`variable_y_axes: ["x1", "y", "y1"]`)).toBeTruthy();
@@ -387,34 +420,26 @@ describe('server', async () => {
 			test.concurrent('can render sensorless homing files', async () => {
 				const config = await loadSerializedConfig(path.join(__dirname, 'fixtures', 'hybrid-config.json'));
 				const utils = await constructKlipperConfigUtils(config);
-				const x = sensorlessXTemplate(config, utils);
-				const y = sensorlessYTemplate(config, utils);
+				const x = sensorlessXTemplate(config, utils, false);
+				const y = sensorlessYTemplate(config, utils, false);
+				expect(x).toContain('variable_sensorless_x_current:');
+				expect(y).toContain('variable_sensorless_y_current:');
+				expect(x).toContain('driver_SGTHRS:');
+				expect(y).toContain('driver_SGTHRS:');
 			});
 		});
 		describe('can generate v-minion config', async () => {
-			const config = await loadSerializedConfig(path.join(__dirname, 'fixtures', 'minion-config.json'));
-			const filesToWrite = await getFilesToWrite(config);
-			let res: string = filesToWrite.find((f) => f.fileName === 'RatOS.cfg')?.content ?? '';
-			const printerCfg: string = filesToWrite.find((f) => f.fileName === 'printer.cfg')?.content ?? '';
-			const splitRes = res.split('\n');
+			const minionConfigPath = path.join(__dirname, 'fixtures', 'minion-config.json');
+			const { splitRes, annotatedLines, config, files } = await loadConfig(minionConfigPath);
+			const printerCfg = files.find((f) => f.fileName === 'printer.cfg')?.content ?? '';
 			const splitPrinterCfg = printerCfg.split('\n');
-			const annotatedLines = splitRes.map((l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`);
 			const annotatedPrinterCfgLines = splitPrinterCfg.map(
 				(l: string, i: number) => `Line-${i + 1}`.padEnd(10, '-') + `|${l}`,
 			);
 			const gcodeBlocks: number[] = [];
 			splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
 			test('produces valid config', async () => {
-				expect(splitRes.length).toBeGreaterThan(0);
-				const noUndefined = splitRes.filter((l: string) => l.includes('undefined')).join('\n');
-				const noPromises = splitRes.filter((l: string) => l.includes('[object Promise]')).join('\n');
-				const noObjects = splitRes.filter((l: string) => l.includes('[object Object]')).join('\n');
-				if (noUndefined || noPromises || noObjects) {
-					console.log(annotatedLines.join('\n'));
-				}
-				expect(noUndefined, 'Expected no undefined values in config').to.eq('');
-				expect(noPromises, 'Expected no promises in config').to.eq('');
-				expect(noObjects, 'Expected no objects in config').to.eq('');
+				expectValidConfig(config, splitRes, annotatedLines);
 			});
 			test.runIf(gcodeBlocks.length > 0)('correctly indents gcode blocks', async () => {
 				for (const block of gcodeBlocks) {
@@ -497,6 +522,52 @@ describe('server', async () => {
 						throw e;
 					}
 				});
+			});
+		});
+		describe('can generate idex-with-double-orbitools config', async () => {
+			const idexWithDoubleOrbitoolsConfigPath = path.join(__dirname, 'fixtures', 'idex-with-double-orbitools.json');
+			const { splitRes, annotatedLines, config, files } = await loadConfig(idexWithDoubleOrbitoolsConfigPath);
+			const gcodeBlocks: number[] = [];
+			splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
+			test('produces valid config', async () => {
+				expectValidConfig(config, splitRes, annotatedLines);
+			});
+			test('contains correct lis2dw accelerometers', () => {
+				const accelLineIndex = splitRes.findIndex((l) => l.includes('variable_adxl_chip: '));
+				expect(accelLineIndex).toBeGreaterThan(-1);
+				const accelLine = splitRes[accelLineIndex];
+				const x = accelLine.includes('lis2dw toolboard_t0');
+				const y = accelLine.includes('lis2dw toolboard_t1');
+				try {
+					expect(x, 'Expected lis2dw toolboard_t0 in accelLine').toBeTruthy();
+				} catch (e) {
+					throw new Error(
+						`Incorrect variable_adxl_chip, expected lis2dw toolboard_t0 to be found in line ${accelLineIndex + 1}:\n${annotatedLines.slice(Math.max(accelLineIndex - 4, 0), Math.min(accelLineIndex + 5, annotatedLines.length)).join('\n')}`,
+					);
+				}
+				try {
+					expect(y, 'Expected lis2dw toolboard_t1 in accelLine').toBeTruthy();
+				} catch (e) {
+					throw new Error(
+						`Incorrect variable_adxl_chip, expected lis2dw toolboard_t1 to be found in line ${accelLineIndex + 1}:\n${annotatedLines.slice(Math.max(accelLineIndex - 4, 0), Math.min(accelLineIndex + 5, annotatedLines.length)).join('\n')}`,
+					);
+				}
+			});
+		});
+		describe('can generate voron-v24 config', async () => {
+			const voronV24ConfigPath = path.join(__dirname, 'fixtures', 'voron-v24-300.json');
+			const { splitRes, annotatedLines, config, files } = await loadConfig(voronV24ConfigPath);
+			const gcodeBlocks: number[] = [];
+			splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
+			test('produces valid config', async () => {
+				expectValidConfig(config, splitRes, annotatedLines);
+				// Expect gear_ratio to be set for z1, z2, z3, z4
+				expect(config.rails.find((r) => r.axis === PrinterAxis.z)?.gearRatio).toEqual('80:16');
+				expect(config.rails.find((r) => r.axis === PrinterAxis.z1)?.gearRatio).toEqual('80:16');
+				expect(config.rails.find((r) => r.axis === PrinterAxis.z2)?.gearRatio).toEqual('80:16');
+				expect(config.rails.find((r) => r.axis === PrinterAxis.z3)?.gearRatio).toEqual('80:16');
+				// Expect gear_ratio to be present in splitRes
+				expect(splitRes.filter((l) => l.includes('gear_ratio:')).length).toBe(5);
 			});
 		});
 	});
@@ -635,7 +706,12 @@ describe('server', async () => {
 					splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
 					for (const block of gcodeBlocks) {
 						try {
-							expect(splitRes[block + 1].startsWith('\t') || splitRes[block + 1].startsWith('  ')).toBeTruthy();
+							expect(
+								splitRes[block + 1].startsWith('\t') ||
+									splitRes[block + 1].startsWith('#\t') ||
+									splitRes[block + 1].startsWith('  ') ||
+									splitRes[block + 1].startsWith('#  '),
+							).toBeTruthy();
 						} catch (e) {
 							throw new Error(
 								`Failed to indent gcode block at line ${block + 1}:\n${annotatedLines.slice(Math.max(block - 4, 0), Math.min(block + 5, annotatedLines.length)).join('\n')}`,
@@ -774,14 +850,14 @@ describe('server', async () => {
 							}
 						});
 					});
-					for (const { line, param } of offendingLines) {
-						try {
-							expect(splitRes[line + 1].startsWith('\t') || splitRes[line + 1].startsWith('  ')).toBeTruthy();
-						} catch (e) {
-							throw new Error(
-								`Illegal parameter "${param}" at line ${line + 1}:\n${annotatedLines.slice(Math.max(line - 4, 0), Math.min(line + 5, annotatedLines.length)).join('\n')}`,
-							);
+					try {
+						expect(offendingLines.length).toBe(0);
+					} catch (e) {
+						let errorMsg = '';
+						for (const { line, param } of offendingLines) {
+							errorMsg += `Illegal parameter "${param}" at line ${line + 1}:\n${annotatedLines.slice(Math.max(line - 4, 0), Math.min(line + 5, annotatedLines.length)).join('\n')}`;
 						}
+						throw new Error(errorMsg);
 					}
 				});
 				test.concurrent('properly indents gcode blocks', async () => {
@@ -789,7 +865,12 @@ describe('server', async () => {
 					splitRes.forEach((l, i) => l.includes('gcode:') && gcodeBlocks.push(i));
 					for (const block of gcodeBlocks) {
 						try {
-							expect(splitRes[block + 1].startsWith('\t') || splitRes[block + 1].startsWith('  ')).toBeTruthy();
+							expect(
+								splitRes[block + 1].startsWith('\t') ||
+									splitRes[block + 1].startsWith('#\t') ||
+									splitRes[block + 1].startsWith('  ') ||
+									splitRes[block + 1].startsWith('#  '),
+							).toBeTruthy();
 						} catch (e) {
 							throw new Error(
 								`Failed to indent gcode block at line ${block + 1}:\n${annotatedLines.slice(Math.max(block - 4, 0), Math.min(block + 5, annotatedLines.length)).join('\n')}`,

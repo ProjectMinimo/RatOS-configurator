@@ -20,7 +20,15 @@ import {
 	ToolOrAxis,
 } from '@/zods/toolhead';
 import { PartialPrinterConfiguration } from '@/zods/printer-configuration';
-import { ToolheadHelper } from '@/helpers/toolhead';
+import { ToolheadHelper, ToolheadSuffix } from '@/helpers/toolhead';
+import {
+	Accelerometer,
+	AccelerometerType,
+	KlipperAccelSensorName,
+	KlipperAccelSensorSchema,
+	klipperAccelSensorSchema,
+} from '@/zods/hardware';
+import { Board, Toolboard } from '@/zods/boards';
 
 export const deserializeDriver = (driverId: z.input<typeof DriverID>): z.infer<typeof Driver> | null => {
 	return Drivers.find((d) => d.id === driverId) ?? null;
@@ -142,4 +150,72 @@ export const extractToolheadFromPrinterConfiguration = (
 			? toolheads.find((th) => th.getTool() === toolOrAxis)
 			: toolheads.find((th) => th.getExtruderAxis() === toolOrAxis || th.getMotionAxis() === toolOrAxis);
 	return th;
+};
+
+export const getAccelerometerWithType = (
+	accelerometer: z.infer<typeof Accelerometer>,
+	toolheadSuffix: ToolheadSuffix | null,
+	toolboard?: Toolboard | null,
+	controlboard?: Board | null,
+): KlipperAccelSensorSchema | null => {
+	let accelType: z.infer<typeof AccelerometerType> = 'adxl345';
+	if (accelerometer.id === 'toolboard') {
+		if (toolboard == null) {
+			throw new Error('Toolboard not found in supplied printer config');
+		}
+		if (toolboard.ADXL345SPI != null) {
+			accelType = 'adxl345';
+		}
+		if (toolboard.LIS2DW != null) {
+			accelType = 'lis2dw';
+		}
+	} else if (accelerometer.id === 'controlboard') {
+		if (controlboard == null) {
+			throw new Error('Controlboard needed to determine accelerometer type');
+		}
+		if (controlboard.ADXL345SPI != null) {
+			accelType = 'adxl345';
+		}
+		if (controlboard.LIS2DW != null) {
+			accelType = 'lis2dw';
+		}
+	} else if (accelerometer.id === 'beacon') {
+		accelType = 'beacon';
+	} else if (accelerometer.id === 'sbc') {
+		accelType = 'adxl345';
+	}
+	if (accelerometer.id === 'none') {
+		return null;
+	}
+	return klipperAccelSensorSchema.parse({
+		name: accelerometerIdToKlipperAccelSensorName(accelerometer, toolheadSuffix, toolboard, controlboard),
+		type: accelType,
+	});
+};
+
+export const accelerometerIdToKlipperAccelSensorName = (
+	accelerometer: z.infer<typeof Accelerometer>,
+	toolheadSuffix: ToolheadSuffix | null,
+	toolboard?: Toolboard | null,
+	controlboard?: Board | null,
+): KlipperAccelSensorName => {
+	if (accelerometer.id === 'toolboard') {
+		if (toolboard == null) {
+			throw new Error('Toolboard not found in supplied printer config');
+		}
+		return toolheadSuffix === 't0' ? 'toolboard_t0' : 'toolboard_t1';
+	}
+	if (accelerometer.id === 'controlboard') {
+		if (controlboard == null) {
+			throw new Error('Controlboard not found in supplied printer config');
+		}
+		return 'controlboard';
+	}
+	if (accelerometer.id === 'beacon') {
+		return 'beacon';
+	}
+	if (accelerometer.id === 'sbc') {
+		return 'rpi';
+	}
+	throw new Error('Cannot translate accelerometer id to Klipper accel sensor name');
 };

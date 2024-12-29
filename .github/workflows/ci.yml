@@ -1,6 +1,6 @@
 name: "CI"
 env:
-  RATOS_CONFIGURATION_PATH: ${{ github.workspace }}/ratos-configuration
+  RATOS_CONFIGURATION_PATH: ${{ github.workspace }}/ratos-configurator/configuration
   KLIPPER_CONFIG_PATH: ${{ github.workspace }}/config
   RATOS_SCRIPT_DIR: ${{ github.workspace }}/ratos-configurator/src/scripts
   KLIPPER_DIR: ${{ github.workspace }}/klipper
@@ -13,6 +13,7 @@ on:
     branches:
       - "development"
       - "v2.1.x"
+      - "monorepo"
   pull_request:
     branches:
       - "**"
@@ -27,23 +28,23 @@ jobs:
   checkout_dependencies:
     name: Lint, Typecheck and Tests
     runs-on: ubuntu-latest
-    outputs:
-      STORE_PATH: ${{ steps.generate-keys.outputs.STORE_PATH }}
-      CACHE_KEY: ${{ steps.generate-keys.outputs.STORE_PATH }}
-      bin_dest: ${{ steps.pnpm-install.outputs.bin_dest }}
-      dest: ${{ steps.pnpm-install.outputs.dest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           repository: Rat-OS/RatOS-configurator
           path: "ratos-configurator"
+          fetch-tags: true
+      - name: Extract target branch name
+        shell: bash
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+        id: extract_branch
 
       - name: Install Node
         uses: actions/setup-node@v4.0.1
         with:
           # Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0.
-          node-version: 18.x
+          node-version: 20.x # Tests currently require node 20
 
       - uses: pnpm/action-setup@v4
         name: Install pnpm
@@ -52,22 +53,19 @@ jobs:
           run_install: false
           version: 9.1
 
-      - name: Generate keys
-        id: generate-keys
+      - name: Get pnpm store directory
+        id: pnpm-cache
         shell: bash
-        env:
-          cache_key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml', '**/.git/refs/heads/*') }}
         run: |
           echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-          echo "CACHE_KEY=$cache_key" >> $GITHUB_OUTPUT
-
+  
       - uses: actions/cache@v3
-        name: pnpm cache
-        id: cache
+        name: Setup pnpm cache
         with:
-          path: |
-            ${{ steps.generate-keys.outputs.STORE_PATH }}
-          key: ${{ steps.generate-keys.outputs.CACHE_KEY }}
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Dependencies
         working-directory: ratos-configurator/src
@@ -75,10 +73,11 @@ jobs:
 
       - name: Checkout RatOS Configuration
         uses: actions/checkout@v4
+        if: github.ref_name != 'monorepo'
         with:
           repository: Rat-OS/RatOS-configuration
           path: "ratos-configuration"
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.base_ref || github.ref_name }}
 
       - name: Checkout Klipper
         uses: actions/checkout@v4

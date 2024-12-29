@@ -102,7 +102,10 @@ export const compileFirmware = async <T extends boolean>(
 			return readFileSync(dest).toString() as T extends true ? string : Awaited<ReturnType<typeof runSudoScript>>;
 		}
 		const binaryName = board.firmwareBinaryName;
-		const extension = path.extname(binaryName);
+		let extension = path.extname(binaryName);
+		if (extension === '.hex' && board.firmwareBinaryName.endsWith('.elf.hex')) {
+			extension = '.elf.hex';
+		}
 		const klipperOut = path.join(environment.KLIPPER_DIR, 'out', `klipper${extension}`);
 		const firmwareDest = path.join(environment.RATOS_DATA_DIR, binaryName);
 		existsSync(firmwareDest) && (await unlink(firmwareDest));
@@ -311,7 +314,7 @@ export const mcuRouter = router({
 					cause: error,
 				});
 			}
-			const versionRegEx = /Version:\s(v\d+\.\d+\.\d+-\d+-\w{9})/;
+			const versionRegEx = /Version:\s(v\d+\.\d+\.\d+-\d+-\w+)/;
 			return version.stdout.match(versionRegEx)?.[1];
 		}),
 	compile: mcuProcedure
@@ -422,7 +425,7 @@ export const mcuRouter = router({
 					flashResults.push({
 						board: b.board,
 						result: 'success',
-						message: `${b.board.manufacturer} ${b.board.name} on ${b.toolhead ? ` ${b.toolhead.getToolCommand}` : ''} was successfully flashed.`,
+						message: `${b.board.manufacturer} ${b.board.name} on ${b.toolhead ? ` ${b.toolhead.getToolCommand()}` : ''} was successfully flashed.`,
 					});
 				} catch (e) {
 					const message = e instanceof Error ? e.message : e;

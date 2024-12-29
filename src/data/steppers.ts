@@ -99,7 +99,6 @@ export const Steppers = z.array(Stepper).parse([
 				driver_PWM_GRAD: 2,
 				driver_PWM_AMPL: 230,
 				driver_PWM_AUTOSCALE: true,
-				driver_SGT: 5,
 			},
 			{
 				run_current: 0.52,
@@ -116,7 +115,6 @@ export const Steppers = z.array(Stepper).parse([
 				driver_PWM_GRAD: 4,
 				driver_PWM_AMPL: 240,
 				driver_PWM_AUTOSCALE: true,
-				driver_SGT: 3,
 			},
 			{
 				run_current: 0.8,
