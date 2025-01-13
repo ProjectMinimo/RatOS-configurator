@@ -100607,9 +100607,9 @@ function validateGenerator(gcodeInfo, allowUnsupportedSlicerVersions, onWarning)
           { cause: gcodeInfo }
         );
       case 1 /* PrusaSlicer */:
-        if (!import_semver2.default.satisfies(gcodeInfo.generatorVersion, "2.8.0 || 2.8.1")) {
+        if (!import_semver2.default.satisfies(gcodeInfo.generatorVersion, "2.8.0 || 2.8.1 || 2.9.0")) {
           throw new SlicerNotSupported(
-            `Only versions 2.8.0 and 2.8.1 of PrusaSlicer are supported. Version ${gcodeInfo.generatorVersion} is not supported.`,
+            `Only versions 2.8.0, 2.8.1 and 2.9.0 of PrusaSlicer are supported. Version ${gcodeInfo.generatorVersion} is not supported.`,
             { cause: gcodeInfo }
           );
         }
