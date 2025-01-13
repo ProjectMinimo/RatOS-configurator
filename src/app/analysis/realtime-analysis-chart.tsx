@@ -91,7 +91,7 @@ export const useRealtimeAnalysisChart = (
 				await updateLoadingState.current(val);
 			}
 			const signalLength = xSignalChart.data.current?.signalData.count() ?? 0;
-			const psdLength = psdChart.surface.current?.renderableSeries.getById('total').dataSeries.count() ?? 0;
+			const psdLength = psdChart.surface.current?.renderableSeries.getById('total')?.dataSeries.count() ?? 0;
 			xSignalChart.data.current?.signalData.clear();
 			ySignalChart.data.current?.signalData.clear();
 			zSignalChart.data.current?.signalData.clear();
@@ -137,28 +137,28 @@ export const useRealtimeAnalysisChart = (
 				new Array(psdLength).fill(0).map((_, i) => i * (200 / psdLength)),
 				new Array(psdLength).fill(0),
 			);
-			psdChart.surface.current?.renderableSeries.getById('x').runAnimation(
+			psdChart.surface.current?.renderableSeries.getById('x')?.runAnimation(
 				new LineAnimation({
 					duration: 200,
 					ease: easing.inOutQuad,
 					dataSeries: animationDS.x,
 				}),
 			);
-			psdChart.surface.current?.renderableSeries.getById('y').runAnimation(
+			psdChart.surface.current?.renderableSeries.getById('y')?.runAnimation(
 				new LineAnimation({
 					duration: 200,
 					ease: easing.inOutQuad,
 					dataSeries: animationDS.y,
 				}),
 			);
-			psdChart.surface.current?.renderableSeries.getById('z').runAnimation(
+			psdChart.surface.current?.renderableSeries.getById('z')?.runAnimation(
 				new LineAnimation({
 					duration: 200,
 					ease: easing.inOutQuad,
 					dataSeries: animationDS.z,
 				}),
 			);
-			psdChart.surface.current?.renderableSeries.getById('total').runAnimation(
+			psdChart.surface.current?.renderableSeries.getById('total')?.runAnimation(
 				new MountainAnimation({
 					duration: 200,
 					ease: easing.inOutQuad,
@@ -222,27 +222,27 @@ export const useRealtimeAnalysisChart = (
 					`Total estimates and frequencies are not the same length  (${res.total.estimates.length} vs ${res.total.frequencies.length})`,
 				);
 			}
-			if (res.x.frequencies.length !== surface.renderableSeries.getById('x').dataSeries.count()) {
+			if (res.x.frequencies.length !== surface.renderableSeries.getById('x')?.dataSeries.count()) {
 				getLogger().warn(
-					`X frequencies are not the same length as the data series (${res.x.estimates.length} vs ${surface.renderableSeries.getById('x').dataSeries.count()})`,
+					`X frequencies are not the same length as the data series (${res.x.estimates.length} vs ${surface.renderableSeries.getById('x')?.dataSeries.count()})`,
 				);
-				surface.renderableSeries.getById('x').dataSeries.clear();
-				surface.renderableSeries.getById('y').dataSeries.clear();
-				surface.renderableSeries.getById('z').dataSeries.clear();
-				surface.renderableSeries.getById('total').dataSeries.clear();
-				(surface.renderableSeries.getById('x').dataSeries as XyDataSeries).appendRange(
+				surface.renderableSeries.getById('x')?.dataSeries.clear();
+				surface.renderableSeries.getById('y')?.dataSeries.clear();
+				surface.renderableSeries.getById('z')?.dataSeries.clear();
+				surface.renderableSeries.getById('total')?.dataSeries.clear();
+				(surface.renderableSeries.getById('x')?.dataSeries as XyDataSeries | null)?.appendRange(
 					res.x.frequencies,
 					new Array(res.x.frequencies.length).fill(0),
 				);
-				(surface.renderableSeries.getById('y').dataSeries as XyDataSeries).appendRange(
+				(surface.renderableSeries.getById('y')?.dataSeries as XyDataSeries | null)?.appendRange(
 					res.y.frequencies,
 					new Array(res.y.frequencies.length).fill(0),
 				);
-				(surface.renderableSeries.getById('z').dataSeries as XyDataSeries).appendRange(
+				(surface.renderableSeries.getById('z')?.dataSeries as XyDataSeries | null)?.appendRange(
 					res.z.frequencies,
 					new Array(res.z.frequencies.length).fill(0),
 				);
-				(surface.renderableSeries.getById('total').dataSeries as XyDataSeries).appendRange(
+				(surface.renderableSeries.getById('total')?.dataSeries as XyDataSeries | null)?.appendRange(
 					res.total.frequencies,
 					new Array(res.total.frequencies.length).fill(0),
 				);
@@ -255,28 +255,28 @@ export const useRealtimeAnalysisChart = (
 			animationDS.y.appendRange(res.y.frequencies, res.y.estimates);
 			animationDS.z.appendRange(res.z.frequencies, res.z.estimates);
 			animationDS.total.appendRange(res.total.frequencies, res.total.estimates);
-			surface.renderableSeries.getById('x').runAnimation(
+			surface.renderableSeries.getById('x')?.runAnimation(
 				new LineAnimation({
 					duration: Math.max(elapsed, 100),
 					ease: easing.inOutQuad,
 					dataSeries: animationDS.x,
 				}),
 			);
-			surface.renderableSeries.getById('y').runAnimation(
+			surface.renderableSeries.getById('y')?.runAnimation(
 				new LineAnimation({
 					duration: Math.max(elapsed, 100),
 					ease: easing.inOutQuad,
 					dataSeries: animationDS.y,
 				}),
 			);
-			surface.renderableSeries.getById('z').runAnimation(
+			surface.renderableSeries.getById('z')?.runAnimation(
 				new LineAnimation({
 					duration: Math.max(elapsed, 100),
 					ease: easing.inOutQuad,
 					dataSeries: animationDS.z,
 				}),
 			);
-			surface.renderableSeries.getById('total').runAnimation(
+			surface.renderableSeries.getById('total')?.runAnimation(
 				new MountainAnimation({
 					duration: Math.max(elapsed, 100),
 					ease: easing.inOutQuad,

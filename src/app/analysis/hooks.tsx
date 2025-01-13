@@ -315,6 +315,9 @@ export const useChart = <T,>(
 							padding: new Thickness(0, 0, 0, indent ? 300 : 0),
 						});
 					}
+					if (chart == null) {
+						throw new Error('Chart not initialized');
+					}
 					chart.sciChartSurface.watermarkPosition = EWatermarkPosition.BottomLeft;
 					chart.sciChartSurface.watermarkRelativeToCanvas = true;
 					surface.current = chart.sciChartSurface;

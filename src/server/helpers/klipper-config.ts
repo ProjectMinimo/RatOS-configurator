@@ -911,9 +911,10 @@ export const constructKlipperConfigHelpers = async (
 							const reminder: string[] = [];
 							reminder.push('# REMEMBER TO CALIBRATE YOUR BEACON!');
 							reminder.push('# Run BEACON_RATOS_CALIBRATE for automatic calibration.');
-							result.push('# Offset mesh relative to the z height at home position');
-							result.push('[bed_mesh]');
-							result.push(`zero_reference_position: ${config.size.x / 2},${config.size.y / 2}`);
+							// Don't emit zero_reference_position until we have versioned compensation meshes and we've done more testing.
+							// result.push('# Offset mesh relative to the z height at home position');
+							// result.push('[bed_mesh]');
+							// result.push(`zero_reference_position: ${config.size.x / 2},${config.size.y / 2}`);
 							extrasGenerator.addReminder(reminder.join('\n'));
 						}
 						break;

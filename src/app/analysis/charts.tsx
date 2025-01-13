@@ -26,6 +26,8 @@ import {
 	XyySeriesInfo,
 	XyyDataSeries,
 	IDataSeries,
+	SplineLineRenderableSeries,
+	RolloverTooltipSvgAnnotation,
 } from 'scichart';
 import { useChart } from '@/app/analysis/hooks';
 import { ChartTheme } from '@/app/analysis/chart-theme';
@@ -97,7 +99,7 @@ export const useADXLSignalChart = (axis: ADXLAxes) => {
 				const xAxis = new NumericAxis(surface.webAssemblyContext2D, {
 					id: SIGNAL_CHART_AXIS_SIGNAL_ID + axis,
 					autoRange: EAutoRange.Always,
-					maxAutoTicks: ADXL_STREAM_BUFFER_SIZE,
+					allowFastMath: true,
 					drawLabels: false,
 					drawMinorTickLines: false,
 					drawMajorTickLines: false,
@@ -111,6 +113,7 @@ export const useADXLSignalChart = (axis: ADXLAxes) => {
 				const xHistoryAxis = new NumericAxis(surface.webAssemblyContext2D, {
 					id: SIGNAL_CHART_AXIS_HISTORY_ID + axis,
 					autoRange: EAutoRange.Always,
+					allowFastMath: true,
 					drawLabels: false,
 					drawMinorGridLines: false,
 					drawMajorTickLines: false,
@@ -422,7 +425,11 @@ export const getPSDTooltipLegendTemplate = (seriesInfos: SeriesInfo[], svgAnnota
 };
 
 // Override the standard tooltip displayed by CursorModifier
-export const psdRolloverTooltipTemplate: TRolloverTooltipSvgTemplate = (id, seriesInfo, rolloverTooltip) => {
+export const psdRolloverTooltipTemplate: TRolloverTooltipSvgTemplate = (
+	id: string,
+	seriesInfo: SeriesInfo,
+	rolloverTooltip: RolloverTooltipSvgAnnotation,
+) => {
 	let valuesBlock = '';
 	const tooltipProps = rolloverTooltip.tooltipProps;
 	const tooltipTitle = tooltipProps.tooltipTitle,
@@ -444,14 +451,14 @@ export const psdRolloverTooltipTemplate: TRolloverTooltipSvgTemplate = (id, seri
 	const width =
 		tooltipProps.width ??
 		calcTooltipWidth(
-			valuesWithLabels.reduce(function (prev, cur) {
+			valuesWithLabels.reduce(function (prev: number, cur: string) {
 				return cur.length > prev ? cur.length : prev;
 			}, 0),
 		);
 	// tooltip height
 	const height = tooltipProps.height ?? calcTooltipHeight(valuesWithLabels.length);
 	rolloverTooltip.updateSize(width, height);
-	valuesWithLabels.forEach(function (val, index) {
+	valuesWithLabels.forEach(function (val: string, index: number) {
 		valuesBlock += `<tspan x="8" dy="1.2em">${val}</tspan>`;
 	});
 	let blur = `<feGaussianBlur result="blurOut" in="offOut" stdDeviation="3" />`;
